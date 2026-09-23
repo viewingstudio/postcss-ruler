@@ -24,7 +24,14 @@
   },
   "author": "Kurt Stubbings <kurt@homeworkclub.co>",
   "license": "MIT",
-  "repository": "homeworkclubco/postcss-ruler",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/viewingstudio/postcss-ruler.git"
+  },
+  "homepage": "https://github.com/viewingstudio/postcss-ruler#readme",
+  "bugs": {
+    "url": "https://github.com/viewingstudio/postcss-ruler/issues"
+  },
   "engines": {
     "node": ">=18.0.0"
   },
