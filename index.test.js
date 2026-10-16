@@ -151,6 +151,36 @@ test("excludes cross-pairs when generateAllCrossPairs is false", async () => {
   );
 });
 
+// Hyphenated names are real tokens, not cross-pairs
+test("keeps hyphenated names when generateAllCrossPairs is false", async () => {
+  await run(
+    `@ruler scale({
+      prefix: 'text',
+      generateAllCrossPairs: true,
+      pairs: {
+        "lg-sans": [8, 16],
+        "lg-serif": [16, 24]
+      }
+    });
+    @ruler utility({
+      selector: '.text',
+      property: 'font-size',
+      scale: 'text',
+      generateAllCrossPairs: false
+    });`,
+    `--text-lg-sans: clamp(0.5rem, 0.5556vw + 0.3889rem, 1rem);
+--text-lg-serif: clamp(1rem, 0.5556vw + 0.8889rem, 1.5rem);
+--text-lg-sans-lg-serif: clamp(0.5rem, 1.1111vw + 0.2778rem, 1.5rem);
+    .text-lg-sans {
+    font-size: clamp(0.5rem, 0.5556vw + 0.3889rem, 1rem)
+}
+    .text-lg-serif {
+    font-size: clamp(1rem, 0.5556vw + 0.8889rem, 1.5rem)
+}`,
+    {},
+  );
+});
+
 // Test error when scale doesn't exist
 test("throws error when scale does not exist", async () => {
   try {
@@ -884,5 +914,299 @@ test("inline scale overrides config scale with same prefix", async () => {
         },
       },
     },
+  );
+});
+
+// Multi-anchor scales
+
+const core = require("./core");
+
+test("scale with three anchors outputs calc() through every anchor", async () => {
+  await run(
+    `@ruler scale({
+      prefix: 'text',
+      anchors: [375, 1440, 2560],
+      pairs: {
+        "md": [16, 18, 19],
+        "lg": [24, 32, 36]
+      }
+    });`,
+    `--text-md: calc(1rem + clamp(0rem, (100vw - 375px) * 0.00188, 0.125rem) + clamp(0rem, (100vw - 1440px) * 0.0009, 0.0625rem));
+--text-lg: calc(1.5rem + clamp(0rem, (100vw - 375px) * 0.00752, 0.5rem) + clamp(0rem, (100vw - 1440px) * 0.00358, 0.25rem));`,
+    {},
+  );
+});
+
+test("anchors work with array-style pairs and keys after pairs", async () => {
+  await run(
+    `@ruler scale({
+      pairs: [
+        ["md", 16, 18, 19],
+      ],
+      prefix: 'text',
+      anchors: [375, 1440, 2560]
+    });`,
+    `--text-md: calc(1rem + clamp(0rem, (100vw - 375px) * 0.00188, 0.125rem) + clamp(0rem, (100vw - 1440px) * 0.0009, 0.0625rem));`,
+    {},
+  );
+});
+
+test("two anchors give the same output as minWidth and maxWidth", async () => {
+  await run(
+    `@ruler scale({
+      prefix: 'space',
+      anchors: [375, 1440],
+      pairs: {
+        "md": [16, 24]
+      }
+    });`,
+    `--space-md: clamp(1rem, 0.7512vw + 0.8239rem, 1.5rem);`,
+    {},
+  );
+});
+
+test("multi-anchor cross-pairs blend from the smaller to the larger token", async () => {
+  await run(
+    `@ruler scale({
+      prefix: 'space',
+      anchors: [375, 1440, 2560],
+      generateAllCrossPairs: true,
+      pairs: {
+        "xs": [8, 12, 14],
+        "md": [16, 24, 28]
+      }
+    });`,
+    `--space-xs: calc(0.5rem + clamp(0rem, (100vw - 375px) * 0.00376, 0.25rem) + clamp(0rem, (100vw - 1440px) * 0.00179, 0.125rem));
+--space-md: calc(1rem + clamp(0rem, (100vw - 375px) * 0.00752, 0.5rem) + clamp(0rem, (100vw - 1440px) * 0.00358, 0.25rem));
+--space-xs-md: calc(0.5rem + clamp(0rem, (100vw - 375px) * 0.00939, 0.625rem) + clamp(0rem, (100vw - 1440px) * 0.00893, 0.625rem));`,
+    {},
+  );
+});
+
+test("multi-anchor scales work with utility classes", async () => {
+  await run(
+    `@ruler scale({
+      prefix: 'text',
+      anchors: [375, 1440, 2560],
+      pairs: {
+        "md": [16, 18, 19]
+      }
+    });
+    @ruler utility({
+      selector: '.text',
+      property: 'font-size',
+      scale: 'text'
+    });`,
+    `--text-md: calc(1rem + clamp(0rem, (100vw - 375px) * 0.00188, 0.125rem) + clamp(0rem, (100vw - 1440px) * 0.0009, 0.0625rem));
+    .text-md {
+    font-size: calc(1rem + clamp(0rem, (100vw - 375px) * 0.00188, 0.125rem) + clamp(0rem, (100vw - 1440px) * 0.0009, 0.0625rem))
+}`,
+    {},
+  );
+});
+
+test("config scales accept named anchors", async () => {
+  await run(
+    `@ruler utility({
+      selector: '.text',
+      property: 'font-size',
+      scale: 'text'
+    });`,
+    `.text-md {
+    font-size: calc(1rem + clamp(0rem, (100vw - 375px) * 0.00188, 0.125rem) + clamp(0rem, (100vw - 1440px) * 0.0009, 0.0625rem))
+}`,
+    {
+      scales: {
+        text: {
+          anchors: [
+            { name: "Mobile", width: 375 },
+            { name: "Desktop", width: 1440 },
+            { name: "Display", width: 2560 },
+          ],
+          pairs: { md: [16, 18, 19] },
+        },
+      },
+    },
+  );
+});
+
+test("throws when a token's value count doesn't match the anchors", async () => {
+  let error;
+  try {
+    await run(
+      `@ruler scale({
+        prefix: 'text',
+        anchors: [375, 1440, 2560],
+        pairs: {
+          "md": [16, 18]
+        }
+      });`,
+      "",
+      {},
+    );
+  } catch (e) {
+    error = e;
+  }
+  equal(
+    error.message.includes('"md" has 2 values but the scale has 3 anchors'),
+    true,
+  );
+});
+
+test("throws when anchors don't increase", async () => {
+  let error;
+  try {
+    await run(
+      `@ruler scale({
+        prefix: 'text',
+        anchors: [375, 2560, 1440],
+        pairs: {
+          "md": [16, 18, 19]
+        }
+      });`,
+      "",
+      {},
+    );
+  } catch (e) {
+    error = e;
+  }
+  equal(error.message.includes("anchors must increase"), true);
+});
+
+test("calculateFluid skips flat segments", () => {
+  equal(
+    core.calculateFluid({ values: [16, 16, 20], anchors: [375, 1440, 2560] }),
+    "calc(1rem + clamp(0rem, (100vw - 1440px) * 0.00358, 0.25rem))",
+  );
+  equal(
+    core.calculateFluid({ values: [16, 16, 16], anchors: [375, 1440, 2560] }),
+    "1rem",
+  );
+});
+
+test("calculateFluid supports shrinking segments", () => {
+  equal(
+    core.calculateFluid({ values: [16, 14, 14], anchors: [375, 1440, 2560] }),
+    "calc(1rem + clamp(-0.125rem, (100vw - 375px) * -0.00188, 0rem))",
+  );
+});
+
+test("calculateFluid lands exactly on every anchor", () => {
+  const anchors = [390, 1024, 1920, 2560];
+  const values = [48, 56, 72, 84];
+  const css = core.calculateFluid({ values, anchors });
+  const at = (width) => {
+    let total = parseFloat(css.slice("calc(".length)) * 16;
+    for (const m of css.matchAll(
+      /clamp\((-?[\d.]+)rem, \(100vw - (\d+)px\) \* (-?[\d.]+), (-?[\d.]+)rem\)/g,
+    )) {
+      const [low, start, slope, high] = [m[1] * 16, +m[2], +m[3], m[4] * 16];
+      total += Math.min(high, Math.max(low, (width - start) * slope));
+    }
+    return total;
+  };
+  anchors.forEach((width, i) => equal(at(width), values[i]));
+  equal(at(320), 48);
+  equal(at(3000), 84);
+});
+
+// Exporters
+
+const exportScales = {
+  text: {
+    anchors: [
+      { name: "Mobile", width: 375 },
+      { name: "Desktop", width: 1440 },
+      { name: "Display", width: 2560 },
+    ],
+    pairs: { md: [16, 18, 19] },
+  },
+};
+
+test("toCss exports custom properties", () => {
+  equal(
+    core.toCss(exportScales),
+    `:root {
+  /* text: Mobile 375px → Desktop 1440px → Display 2560px. 16px root. */
+  --text-md: calc(1rem + clamp(0rem, (100vw - 375px) * 0.00188, 0.125rem) + clamp(0rem, (100vw - 1440px) * 0.0009, 0.0625rem));
+}
+`,
+  );
+});
+
+test("toTailwind4 exports an @theme block", () => {
+  equal(core.toTailwind4(exportScales).startsWith("@theme {\n"), true);
+});
+
+test("toTailwind3 exports a theme module pointing at custom properties", () => {
+  equal(
+    core.toTailwind3(exportScales),
+    `// Generated by postcss-ruler. Needs the custom properties from toCss().
+module.exports = {
+  "text": {
+    "md": "var(--text-md)"
+  }
+};
+`,
+  );
+});
+
+test("toRulerConfig round-trips through the plugin", async () => {
+  const result = await postcss([plugin()]).process(
+    core.toRulerConfig(exportScales),
+    { from: undefined },
+  );
+  equal(
+    result.css.trim(),
+    `--text-md: calc(1rem + clamp(0rem, (100vw - 375px) * 0.00188, 0.125rem) + clamp(0rem, (100vw - 1440px) * 0.0009, 0.0625rem));`,
+  );
+});
+
+// Plugin ordering
+
+test("processes @ruler before later plugins' Once hooks (e.g. Tailwind 4)", async () => {
+  const rejectsRuler = {
+    postcssPlugin: "rejects-ruler",
+    Once(root) {
+      root.walkAtRules("ruler", () => {
+        throw new Error("@ruler reached a later plugin unprocessed");
+      });
+    },
+  };
+  const result = await postcss([plugin(), rejectsRuler]).process(
+    `@theme {
+  @ruler scale({ prefix: 'text', pairs: { "md": [16, 24] } });
+}`,
+    { from: undefined },
+  );
+  equal(
+    result.css,
+    `@theme {
+  --text-md: clamp(1rem, 0.5556vw + 0.8889rem, 1.5rem);
+}`,
+  );
+});
+
+test("defers utilities whose scale is added by a later plugin", async () => {
+  const addsScale = {
+    postcssPlugin: "adds-scale",
+    Once(root) {
+      root.prepend(
+        postcss.parse(
+          `@ruler scale({ prefix: 'space', pairs: { "xs": [8, 16] } });`,
+        ).nodes,
+      );
+    },
+  };
+  const result = await postcss([plugin(), addsScale]).process(
+    `@ruler utility({ selector: '.gap', property: 'gap', scale: 'space' });`,
+    { from: undefined },
+  );
+  equal(
+    result.css,
+    `--space-xs: clamp(0.5rem, 0.5556vw + 0.3889rem, 1rem);
+.gap-xs {
+    gap: clamp(0.5rem, 0.5556vw + 0.3889rem, 1rem)
+}`,
   );
 });

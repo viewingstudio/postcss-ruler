@@ -124,6 +124,41 @@ For example, if you have `xs: [8, 16]` and `lg: [32, 48]`, a cross pair `xs-lg` 
 }
 ```
 
+### Anchors: More Than Two Design Sizes
+
+A pair only knows two sizes. If a design has a size for mobile, desktop, and large screens, give the scale `anchors` (viewport widths) and one size per anchor. Each value grows in a straight line between neighbouring anchors, so it can grow quickly from mobile to desktop and then slowly on big screens:
+
+```css
+@ruler scale({
+  prefix: 'text',
+  anchors: [375, 1440, 2560],
+  pairs: {
+    "md": [16, 18, 19],
+    "lg": [24, 32, 36]
+  }
+});
+```
+
+**Generates:**
+
+```css
+--text-md: calc(
+  1rem + clamp(0rem, (100vw - 375px) * 0.00188, 0.125rem) +
+    clamp(0rem, (100vw - 1440px) * 0.0009, 0.0625rem)
+);
+--text-lg: calc(
+  1.5rem + clamp(0rem, (100vw - 375px) * 0.00752, 0.5rem) +
+    clamp(0rem, (100vw - 1440px) * 0.00358, 0.25rem)
+);
+```
+
+Each value is its smallest size plus one `clamp()` per segment: "grow by up to this much between these two anchors". A term is zero before its segment and full after it, so the value is exactly the designed size at every anchor, with no media queries. Below the first anchor and above the last, it holds.
+
+- Every token needs one value per anchor.
+- Sizes can stay flat or shrink between anchors (e.g. `[16, 14, 14]`).
+- Two anchors give exactly the same output as `minWidth`/`maxWidth`.
+- With `generateAllCrossPairs: true`, a cross pair starts at the smaller token, ends at the larger one, and blends between the two at the anchors in between.
+
 ### 2. Utility Class Generation: Auto-Generate Utility Classes
 
 Generate utility classes from your defined scales with complete selector flexibility:
@@ -390,19 +425,38 @@ Now you can use `@ruler utility()` in any file without needing `@ruler scale()` 
 });
 ```
 
+Config scales take `anchors` too, as widths or named objects. This is the same shape a design-token export can write, so a JSON file can be passed straight in with `scales: require("./tokens/type.json")`:
+
+```javascript
+scales: {
+  text: {
+    anchors: [
+      { name: "Mobile", width: 390 },
+      { name: "Desktop", width: 1024 },
+      { name: "Display", width: 1920 },
+    ],
+    pairs: {
+      "5xl": [48, 56, 72],
+      md: [18, 18, 20],
+    },
+  },
+}
+```
+
 **Note:** If you use `@ruler scale()` with the same prefix as a config-defined scale, the inline scale will override the config scale for that file.
 
 ### At-Rule Options
 
 All options can be overridden per `@ruler scale()` declaration:
 
-| Option                  | Type    | Default   | Description                                |
-| ----------------------- | ------- | --------- | ------------------------------------------ |
-| `minWidth`              | number  | `320`     | Minimum viewport width for this scale      |
-| `maxWidth`              | number  | `1760`    | Maximum viewport width for this scale      |
-| `prefix`                | string  | `"space"` | Prefix for generated CSS custom properties |
-| `generateAllCrossPairs` | boolean | `false`   | Generate cross-combinations for this scale |
-| `pairs`                 | object  | required  | Size pairs as `"name": [min, max]`         |
+| Option                  | Type    | Default   | Description                                             |
+| ----------------------- | ------- | --------- | ------------------------------------------------------- |
+| `minWidth`              | number  | `320`     | Minimum viewport width for this scale                   |
+| `maxWidth`              | number  | `1760`    | Maximum viewport width for this scale                   |
+| `anchors`               | array   | —         | Viewport widths, one per value (replaces min/max width) |
+| `prefix`                | string  | `"space"` | Prefix for generated CSS custom properties              |
+| `generateAllCrossPairs` | boolean | `false`   | Generate cross-combinations for this scale              |
+| `pairs`                 | object  | required  | `"name": [min, max]`, or one value per anchor           |
 
 ### Inline Function Syntax
 
@@ -615,6 +669,83 @@ h2 {
   gap: ruler.fluid(12, 24);
 }
 ```
+
+## Tailwind CSS
+
+### Tailwind v4
+
+Put `@ruler scale()` inside `@theme`, with a prefix from Tailwind's theme namespaces (`text` for font sizes, `spacing` for spacing). Tailwind then generates utilities like `text-lg` from it:
+
+```css
+@import "tailwindcss";
+
+@theme {
+  @ruler scale({
+    prefix: 'text',
+    anchors: [375, 1440, 2560],
+    pairs: {
+      "md": [16, 18, 19],
+      "lg": [24, 32, 36]
+    }
+  });
+}
+```
+
+List `postcss-ruler` before `@tailwindcss/postcss` so the scale is expanded before Tailwind reads `@theme`:
+
+```javascript
+// postcss.config.js
+module.exports = {
+  plugins: {
+    "postcss-ruler": {},
+    "@tailwindcss/postcss": {},
+  },
+};
+```
+
+Tested with `@tailwindcss/postcss`. `@tailwindcss/vite` doesn't run through PostCSS, so it hasn't been tested.
+
+### Tailwind v3 (or no build dependency)
+
+Generate the tokens once with the core exporters, commit the output, and point the Tailwind theme at the custom properties:
+
+```javascript
+// scripts/build-tokens.js
+const fs = require("fs");
+const { toCss, toTailwind3 } = require("postcss-ruler/core");
+const scales = require("../tokens/type.json");
+
+fs.writeFileSync("src/styles/fluid-tokens.css", toCss(scales));
+fs.writeFileSync("fluid-tokens.js", toTailwind3(scales));
+```
+
+```javascript
+// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      fontSize: require("./fluid-tokens.js").text,
+    },
+  },
+};
+```
+
+`text-lg` then sets `font-size: var(--text-lg)`. The string form sets font size only. If you need paired line heights, use Tailwind's `[size, { lineHeight }]` form.
+
+## Using the Core Without PostCSS
+
+`postcss-ruler/core` has the maths and exporters with no PostCSS dependency. It works in Node, the browser, or a Figma plugin.
+
+| Function                                                   | Returns                                              |
+| ---------------------------------------------------------- | ---------------------------------------------------- |
+| `calculateFluid({ values, anchors })`                      | A fluid value through each anchor                    |
+| `calculateClamp({ minSize, maxSize, minWidth, maxWidth })` | A two-point `clamp()`                                |
+| `toCss(scales, { selector })`                              | Custom properties, in `:root` by default             |
+| `toTailwind4(scales)`                                      | An `@theme` block                                    |
+| `toTailwind3(scales)`                                      | A theme module mapping names to `var(--prefix-name)` |
+| `toRulerConfig(scales)`                                    | `@ruler scale()` at-rules                            |
+
+`scales` is the same shape as the plugin's `scales` option.
 
 ## Browser Support
 

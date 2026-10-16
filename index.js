@@ -1,4 +1,10 @@
 const CSSValueParser = require("postcss-value-parser");
+const {
+  calculateClamp,
+  generateClamps,
+  normalizeAnchors,
+  resolveScale,
+} = require("./core");
 
 /**
  * @type {import('postcss').PluginCreator}
@@ -17,123 +23,12 @@ module.exports = (opts) => {
   const scales = {};
 
   /**
-   * Converts pixels to r]em units
-   * @param {number} px - Pixel value to convert
-   * @returns {string} Rem value as string
-   */
-  const pxToRem = (px) => `${parseFloat((px / 16).toFixed(4))}rem`;
-
-  /**
-   * Validates that min value is less than max value
-   * @param {number} min - Minimum value
-   * @param {number} max - Maximum value
-   * @param {string} context - Context for error message
-   * @throws {Error} If min >= max
-   */
-  const validateMinMax = (min, max, context) => {
-    if (min >= max) {
-      throw new Error(
-        `[postcss-ruler] Invalid ${context}: min (${min}) must be less than max (${max})`,
-      );
-    }
-  };
-
-  /**
-   * Calculates a fluid clamp() function
-   * @param {Object} params - Calculation parameters
-   * @param {number} params.minSize - Minimum size in pixels
-   * @param {number} params.maxSize - Maximum size in pixels
-   * @param {number} params.minWidth - Minimum viewport width in pixels
-   * @param {number} params.maxWidth - Maximum viewport width in pixels
-   * @returns {string} CSS clamp() function
-   */
-  const calculateClamp = ({ minSize, maxSize, minWidth, maxWidth }) => {
-    // New: Allow equal values - just return rem
-    if (minSize === maxSize) {
-      return pxToRem(minSize);
-    }
-
-    validateMinMax(minSize, maxSize, "size");
-    validateMinMax(minWidth, maxWidth, "width");
-
-    const slope = (maxSize - minSize) / (maxWidth - minWidth);
-    const intersect = -minWidth * slope + minSize;
-
-    return `clamp(${pxToRem(minSize)}, ${(slope * 100).toFixed(
-      4,
-    )}vw + ${pxToRem(intersect)}, ${pxToRem(maxSize)})`;
-  };
-
-  /**
-   * Generates clamp values from pairs
-   * @param {Object} params - Generation parameters
-   * @param {Array<{name: string, values: [number, number]}>} params.pairs - Size pairs
-   * @param {number} params.minWidth - Minimum viewport width
-   * @param {number} params.maxWidth - Maximum viewport width
-   * @param {boolean} params.generateAllCrossPairs - Whether to generate cross pairs
-   * @returns {Array<{label: string, clamp: string}>} Array of clamp values
-   */
-  const generateClamps = ({
-    pairs,
-    minWidth,
-    maxWidth,
-    generateAllCrossPairs,
-  }) => {
-    let clampScales = pairs.map(({ name, values: [minSize, maxSize] }) => ({
-      label: name,
-      clamp: calculateClamp({
-        minSize,
-        maxSize,
-        minWidth,
-        maxWidth,
-      }),
-    }));
-
-    if (generateAllCrossPairs) {
-      let crossPairs = [];
-      for (let i = 0; i < pairs.length; i++) {
-        for (let j = i + 1; j < pairs.length; j++) {
-          const [smaller, larger] = [pairs[i], pairs[j]].sort(
-            (a, b) => a.values[0] - b.values[0],
-          );
-          crossPairs.push({
-            label: `${smaller.name}-${larger.name}`,
-            clamp: calculateClamp({
-              minSize: smaller.values[0],
-              maxSize: larger.values[1],
-              minWidth,
-              maxWidth,
-            }),
-          });
-        }
-      }
-      clampScales = [...clampScales, ...crossPairs];
-    }
-
-    return clampScales;
-  };
-
-  /**
    * Pre-processes scales defined in plugin config
    * @param {Object} configScales - Scales object from plugin options
    */
   const initializeConfigScales = (configScales) => {
     Object.entries(configScales).forEach(([prefix, scaleConfig]) => {
-      const scaleOpts = {
-        minWidth: scaleConfig.minWidth || config.minWidth,
-        maxWidth: scaleConfig.maxWidth || config.maxWidth,
-        generateAllCrossPairs:
-          scaleConfig.generateAllCrossPairs ?? config.generateAllCrossPairs,
-      };
-
-      const clampPairs = Object.entries(scaleConfig.pairs).map(
-        ([name, values]) => ({ name, values }),
-      );
-
-      scales[prefix] = generateClamps({
-        pairs: clampPairs,
-        ...scaleOpts,
-      });
+      scales[prefix] = generateClamps(resolveScale(scaleConfig, config));
     });
   };
 
@@ -177,6 +72,19 @@ module.exports = (opts) => {
           clampsParams.generateAllCrossPairs = value === "true";
           i++;
           break;
+        case "anchors": {
+          // Collect widths until the closing bracket, e.g. [375 | 1440 | 2560]
+          const anchors = [];
+          while (++i < params.length) {
+            const width = Number(params[i].value.replace(/[[\],]/g, ""));
+            if (params[i].value.replace(/[[\],]/g, "") !== "") {
+              anchors.push(width);
+            }
+            if (params[i].value.includes("]")) break;
+          }
+          clampsParams.anchors = anchors;
+          break;
+        }
       }
     }
 
@@ -186,7 +94,7 @@ module.exports = (opts) => {
   /**
    * Extracts pairs from parsed parameters
    * @param {Array} params - Parsed parameter nodes
-   * @returns {Object} Pairs object with name: [min, max] entries
+   * @returns {Object} Pairs object with name: [size at each anchor] entries
    */
   const extractPairs = (params) => {
     const pairs = {};
@@ -195,27 +103,24 @@ module.exports = (opts) => {
     if (pairsStartIndex === -1) return pairs;
 
     let currentName = null;
-    let currentValues = [];
 
     for (let i = pairsStartIndex + 1; i < params.length; i++) {
       const param = params[i];
-      const value = param.value.replace("[", "").replace("]", "");
-      if (!value || value === "[" || value === "]") continue;
 
       if (param.type === "string") {
-        if (currentName && currentValues.length === 2) {
-          pairs[currentName] = currentValues;
-        }
-        currentName = value;
-        currentValues = [];
-      } else {
-        const numValue = Number(value);
-        if (!isNaN(numValue)) currentValues.push(numValue);
+        currentName = param.value;
+        pairs[currentName] = [];
+        continue;
       }
 
-      if (currentName && currentValues.length === 2) {
-        pairs[currentName] = currentValues;
-      }
+      const value = param.value.replace(/[[\]{},]/g, "");
+      if (value === "") continue;
+
+      // A non-numeric word is the next key (e.g. prefix), so pairs have ended
+      const numValue = Number(value);
+      if (isNaN(numValue)) break;
+
+      if (currentName) pairs[currentName].push(numValue);
     }
 
     return pairs;
@@ -307,8 +212,11 @@ module.exports = (opts) => {
       ([name, values]) => ({ name, values }),
     );
     const clampScale = generateClamps({
-      ...clampsParams,
       pairs: clampPairs,
+      anchors: normalizeAnchors(
+        clampsParams.anchors || [clampsParams.minWidth, clampsParams.maxWidth],
+      ),
+      generateAllCrossPairs: clampsParams.generateAllCrossPairs,
     });
 
     // Store the scale for later use by utility classes
@@ -332,8 +240,10 @@ module.exports = (opts) => {
   /**
    * Processes @ruler utility() at-rule and generates utility classes
    * @param {Object} atRule - PostCSS at-rule node
+   * @param {boolean} [deferMissingScale] - Leave the at-rule for a later pass
+   *   instead of throwing when its scale isn't defined yet
    */
-  const processUtilityAtRule = (atRule) => {
+  const processUtilityAtRule = (atRule, deferMissingScale = false) => {
     const postcss = require("postcss");
     const { nodes } = CSSValueParser(atRule.params);
     const params = nodes[0].nodes.filter(
@@ -383,6 +293,7 @@ module.exports = (opts) => {
 
     // Check if scale exists
     const scale = scales[utilityParams.scale];
+    if (!scale && deferMissingScale) return;
     if (!scale) {
       throw new Error(
         `[postcss-ruler] Scale "${utilityParams.scale}" not found. Define it with @ruler scale() first.`,
@@ -392,8 +303,9 @@ module.exports = (opts) => {
     // Determine which scale items to use
     let scaleItems = scale;
     if (utilityParams.generateAllCrossPairs === false) {
-      // Filter out cross-pairs (items with hyphens in label)
-      scaleItems = scale.filter((item) => !item.label.includes("-"));
+      // Filter out cross-pairs. Names can contain hyphens (e.g. "2xl-sans"),
+      // so check the flag rather than the label
+      scaleItems = scale.filter((item) => !item.cross);
     }
 
     // Normalize property to array
@@ -489,16 +401,30 @@ module.exports = (opts) => {
     }
   };
 
+  /**
+   * Routes an @ruler at-rule to its processor
+   * @param {Object} atRule - PostCSS at-rule node
+   * @param {boolean} [deferMissingScale] - See processUtilityAtRule
+   */
+  const processRulerAtRule = (atRule, deferMissingScale = false) => {
+    if (atRule.params.startsWith("scale(")) {
+      return processFluidAtRule(atRule);
+    } else if (atRule.params.startsWith("utility(")) {
+      return processUtilityAtRule(atRule, deferMissingScale);
+    }
+  };
+
   return {
     postcssPlugin: "ruler",
+    // Runs before plugins that rebuild the tree in their own Once hook, such
+    // as @tailwindcss/postcss, so @ruler works inside @theme. Anything added
+    // later (e.g. by postcss-import) is handled by the visitors below.
+    Once(root) {
+      root.walkAtRules("ruler", (atRule) => processRulerAtRule(atRule, true));
+      root.walkDecls(processFluidDeclaration);
+    },
     AtRule: {
-      ruler: (atRule) => {
-        if (atRule.params.startsWith("scale(")) {
-          return processFluidAtRule(atRule);
-        } else if (atRule.params.startsWith("utility(")) {
-          return processUtilityAtRule(atRule);
-        }
-      },
+      ruler: (atRule) => processRulerAtRule(atRule),
     },
     Declaration(decl) {
       processFluidDeclaration(decl);

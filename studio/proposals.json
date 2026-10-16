@@ -1,0 +1,25 @@
+[
+  {
+    "id": "figma-as-designed",
+    "name": "Figma scale, as designed",
+    "note": "The four Figma modes as anchors, each at its frame width. Sizes grow in a straight line between them.",
+    "savedAt": "2026-09-23T12:00:00.000Z",
+    "state": {
+      "prefix": "text",
+      "anchors": [
+        { "name": "Mobile", "from": 390, "at": 390 },
+        { "name": "Desktop", "from": 1024, "at": 1024 },
+        { "name": "Display", "from": 1920, "at": 1920 },
+        { "name": "Display plus", "from": 2560, "at": 2560 }
+      ],
+      "tokens": [
+        ["5xl", 48, 56, 72, 84], ["4xl", 36, 48, 64, 68], ["3xl", 28, 32, 48, 56],
+        ["2xl-sans", 24, 28, 32, 36], ["2xl-serif", 24, 28, 36, 42],
+        ["xl-sans", 18, 18, 20, 24], ["xl-serif", 20, 24, 28, 36],
+        ["lg-sans", 14, 16, 20, 24], ["lg-serif", 16, 20, 24, 28],
+        ["md", 18, 18, 20, 20], ["sm", 16, 16, 20, 24], ["xs", 14, 14, 16, 20],
+        ["xxs", 12, 14, 14, 14], ["xxxs", 12, 12, 14, 14]
+      ]
+    }
+  }
+]

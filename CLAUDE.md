@@ -16,23 +16,25 @@ The plugin operates in three modes:
 
 ### Key Components
 
+**Core maths** (`core.js`, exported as `postcss-ruler/core`):
+- Pure functions with no PostCSS dependency, so the same maths can run in the browser or a Figma plugin
+- `calculateClamp`: two-point `clamp(minRem, slopeVw + intersectRem, maxRem)`, all px converted to rem at a 16px base
+- `calculateFluid({ values, anchors })`: one value per anchor width. 2 anchors delegate to `calculateClamp`. 3+ give `calc(base + clamp(0rem, (100vw - a)px * slope, Δrem) + …)`, one term per non-flat segment. The slope is rounded away from zero so each anchor lands exactly on its value
+- `generateClamps`, `resolveScale`, and exporters `toCss`, `toTailwind4`, `toTailwind3`, `toRulerConfig`, which take the same shape as the plugin's `scales` option
+
 **Main entry point** (`index.js`):
-- Exports a PostCSS plugin factory function
-- Processes both `@fluid` at-rules and inline `generateScale()` functions
-- Configuration: `minWidth` (default: 320), `maxWidth` (default: 1760), `generateAllCrossPairs` (default: false)
+- Exports a PostCSS plugin factory function and requires the maths from `./core`
+- Processes `@ruler` at-rules and inline `ruler.fluid()` in a `Once` hook, so it runs before plugins that rebuild the tree in their own `Once` (e.g. `@tailwindcss/postcss`, which lets `@ruler scale()` sit inside `@theme`). The `AtRule`/`Declaration` visitors stay for nodes added later (e.g. by postcss-import). In the `Once` pass, utilities whose scale isn't defined yet are left for the visitors
+- Configuration: `minWidth` (default: 320), `maxWidth` (default: 1760), `generateAllCrossPairs` (default: false), `lowSpecificity`, `scales`
 
-**Core calculation** (`calculateClamp` function, index.js:45):
-- Uses linear interpolation to compute fluid values
-- Formula: `clamp(minRem, slopeVw + intersectRem, maxRem)`
-- Converts all pixel values to rem (assuming 16px base)
-
-**At-rule processing** (`processFluidAtRule`, index.js:194):
+**At-rule processing** (`processFluidAtRule`, index.js:195):
 - Parses `@ruler scale()` parameters using `postcss-value-parser`
-- Accepts configuration: `minWidth`, `maxWidth`, `prefix`, `relativeTo`, `generateAllCrossPairs`, and `pairs`
+- Accepts configuration: `minWidth`, `maxWidth`, `anchors`, `prefix`, `generateAllCrossPairs`, and `pairs`
+- `pairs` values are collected per name until the next non-numeric key, so each token can have any number of values. The count must match the anchors
 - Generates CSS custom properties in format: `--{prefix}-{label}: clamp(...)`
 - When `generateAllCrossPairs: true`, creates additional cross-combinations between all defined pairs
 
-**Utility class generation** (`processUtilityAtRule`, index.js:291):
+**Utility class generation** (`processUtilityAtRule`, index.js:246):
 - Parses `@ruler utility()` parameters using `postcss-value-parser`
 - Accepts configuration: `selector`, `property`, `scale`, and `generateAllCrossPairs`
 - References previously defined scales by their `prefix` name
@@ -41,12 +43,18 @@ The plugin operates in three modes:
 - Property can be a single value or array of properties
 - Stores scales in memory during PostCSS processing for reference by utility at-rules
 
-**Declaration processing** (`processFluidDeclaration`, index.js:359):
+**Declaration processing** (`processFluidDeclaration`, index.js:367):
 - Walks declaration values to find `ruler.fluid()` function calls
 - Detects pattern: word "ruler", div ".", function "fluid"
 - Replaces `ruler.fluid(...)` with calculated `clamp()` value in-place
 - Removes "ruler" and "." tokens during replacement
 - Note: The dot is parsed as a 'div' (divider) type node by postcss-value-parser
+
+**Ruler studio** (`studio/`, not in the npm package):
+- `studio/index.html` is a claude.ai artifact (https://claude.ai/artifact/QQjmqb3szidbWiqW8KYocM) for tuning multi-anchor scales, presenting them against today's stepped sizes, and exporting every core format
+- It loads the repo's own `core.js` as a published file beside the page (`files: { "core.js": "core.js", "proposals.json": "studio/proposals.json" }`), so its numbers always match the plugin. Opened locally from a server at the repo root, it falls back to `../core.js`
+- Saved proposals live in `proposals.json`; the page writes it with the `artifact` capability. Before republishing, read the live `proposals.json` back so saved proposals aren't overwritten
+- Deep links: `#present`, and `#p-<proposal id>` opens a proposal in Present
 
 ## Development Commands
 
@@ -153,7 +161,7 @@ The test file (index.test.js) includes comprehensive tests for all plugin featur
 - The plugin validates that min values are always less than max values
 - Uses `postcss-value-parser` for parsing both at-rule params and declaration values
 - Error messages are prefixed with `[postcss-ruler]`
-- The `generateAllCrossPairs` feature creates combinations like `xs-md`, `xs-lg`, `sm-lg` from defined pairs
+- The `generateAllCrossPairs` feature creates combinations like `xs-md`, `xs-lg`, `sm-lg` from defined pairs. With 3+ anchors, a cross pair's value at anchor i is `lerp(smaller[i], larger[i], i / (n - 1))`
 - Inline function detection looks for the pattern: word "ruler" + div "." + function "fluid"
 - The dot separator is parsed as a 'div' type node by postcss-value-parser, not a 'word' node
 

@@ -1,0 +1,1003 @@
+<meta charset="utf-8">
+<title>Ruler studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<style>
+  :root {
+    --paper: #f6f6f2;
+    --panel: #fdfdfb;
+    --ink: #161614;
+    --ink-2: #57564f;
+    --muted: #8b8a82;
+    --rule: #e2e1da;
+    --line: #bcbbb3;
+    --s1: #2a45c4;
+    --s1-wash: rgba(42,69,196,.06);
+    --s2: #a8661a;
+    --s2-wash: rgba(168,102,26,.08);
+    --warn: #c2362b;
+    --warn-wash: rgba(194,54,43,.08);
+    --good: #2d7a4c;
+    --focus: #2a45c4;
+    --frame: #ffffff;
+    --frame-ink: #161614;
+    --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --paper: #161615; --panel: #1d1d1b; --ink: #f2f1ec; --ink-2: #c4c3ba; --muted: #8e8d85;
+      --rule: #2e2e2b; --line: #55544f; --s1: #7d93f0; --s1-wash: rgba(125,147,240,.09);
+      --s2: #dc9a4c; --s2-wash: rgba(220,154,76,.10); --warn: #ec7064; --warn-wash: rgba(236,112,100,.12);
+      --good: #6cc091; --focus: #7d93f0; --frame: #232321; --frame-ink: #f2f1ec;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #161615; --panel: #1d1d1b; --ink: #f2f1ec; --ink-2: #c4c3ba; --muted: #8e8d85;
+    --rule: #2e2e2b; --line: #55544f; --s1: #7d93f0; --s1-wash: rgba(125,147,240,.09);
+    --s2: #dc9a4c; --s2-wash: rgba(220,154,76,.10); --warn: #ec7064; --warn-wash: rgba(236,112,100,.12);
+    --good: #6cc091; --focus: #7d93f0; --frame: #232321; --frame-ink: #f2f1ec;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { background: var(--paper); color: var(--ink); font: 14px/1.5 var(--sans); }
+  .wrap { max-width: 1440px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 32px; margin-bottom: 16px; }
+  h1 { font-size: 26px; line-height: 1.1; margin: 0; letter-spacing: -.02em; font-weight: 600; text-wrap: balance; }
+  .lede { margin: 6px 0 0; color: var(--ink-2); max-width: 68ch; }
+  .lede code, .explain code { font-family: var(--mono); font-size: 12px; background: var(--paper); padding: 1px 4px; border-radius: 4px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .views { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); }
+  .views button { border: 0; background: transparent; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+  .views button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 10px 14px; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; margin-bottom: 20px; }
+  .bar label { font-weight: 600; }
+  .bar .grow { flex: 1 1 auto; }
+  .status { font-size: 12.5px; color: var(--ink-2); }
+  .status.good { color: var(--good); }
+  .status.bad { color: var(--warn); }
+  .save-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; padding-top: 10px; border-top: 1px solid var(--rule); }
+  .save-form input[type=text] { flex: 1 1 180px; min-width: 0; border: 1px solid var(--rule); background: var(--paper); border-radius: 6px; padding: 5px 8px; }
+  .save-form input#saveNote { flex-basis: 320px; }
+  .fallback { width: 100%; display: grid; gap: 8px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 24px; align-items: start; }
+  @media (max-width: 980px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+  .panel + .panel { margin-top: 16px; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin: 0 0 12px; }
+
+  input[type=number] { font-family: var(--mono); font-size: 13px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 5px 7px; font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12px; color: var(--muted); margin: 0; }
+
+  .tbl-wrap { overflow-x: auto; margin-inline: -4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th { text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); padding: 0 4px 6px; white-space: nowrap; }
+  th.anc { color: var(--s1); }
+  td { padding: 3px 4px; border-top: 1px solid var(--rule); vertical-align: middle; }
+  td input[type=text] { width: 100%; min-width: 76px; font-family: var(--mono); font-size: 13px; border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 5px 6px; }
+  td input[type=text]:hover { border-color: var(--rule); }
+  td input[type=number] { width: 58px; }
+  tr.hl td { background: var(--s1-wash); }
+  .rm { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 16px; line-height: 1; }
+  .rm:hover { color: var(--warn); background: var(--warn-wash); }
+  .row-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  .btn { border: 1px solid var(--rule); background: var(--paper); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 500; }
+  .btn:hover { border-color: var(--ink-2); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .btn.small { padding: 3px 9px; font-size: 12.5px; }
+  select.sel { border: 1px solid var(--rule); background: var(--paper); border-radius: 6px; padding: 5px 8px; font-size: 13px; max-width: 100%; }
+  .preset-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .prefix-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 13px; }
+  .prefix-row input { width: 120px; font-family: var(--mono); font-size: 13px; border: 1px solid var(--rule); background: var(--paper); border-radius: 6px; padding: 5px 7px; }
+  .anchors td input[type=number] { width: 78px; }
+  .anchors td input[type=text] { min-width: 90px; }
+
+  details.import summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+  details.import[open] summary { margin-bottom: 10px; }
+  details.import textarea { width: 100%; min-height: 120px; font: 12px/1.5 var(--mono); background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 10px; resize: vertical; }
+
+  .ease { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rule); display: grid; gap: 10px; }
+  .ease-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .ease-row input[type=range] { flex: 1 1 140px; accent-color: var(--s2); }
+  .ease-row output { font-family: var(--mono); font-size: 13px; min-width: 4ch; }
+
+  .viewer { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+  .viewer > * { min-width: 0; }
+  .scrub { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 3; background: var(--panel); }
+  .scrub label { font-weight: 600; }
+  .scrub input[type=range] { flex: 1 1 240px; accent-color: var(--ink); }
+  .scrub .read { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .pill { font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--s1-wash); color: var(--s1); }
+
+  .chart-wrap { position: relative; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  svg text { fill: var(--ink-2); font: 11px var(--mono); }
+  .series { fill: none; stroke: var(--line); stroke-width: 2; stroke-linejoin: round; }
+  .series.hl { stroke: var(--s1); stroke-width: 2.5; }
+  .series.step { stroke-dasharray: 3 4; stroke-width: 1.25; opacity: .8; }
+  .series.step.hl { stroke: var(--s1); opacity: 1; stroke-width: 1.5; }
+  .lbl.hl { fill: var(--s1); font-weight: 600; }
+  .tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.12); min-width: 170px; font-variant-numeric: tabular-nums; }
+  .tip .t-h { font-weight: 600; margin-bottom: 4px; }
+  .tip .t-r { display: flex; justify-content: space-between; gap: 14px; font-family: var(--mono); }
+  .tip .t-r b { font-weight: 500; color: var(--ink); }
+  .tip .t-r span { color: var(--ink-2); }
+  .tip .t-r i { font-style: normal; color: var(--muted); margin-left: 8px; }
+
+  .spec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .spec { overflow: hidden; }
+  .spec-row { display: grid; grid-template-columns: 96px 58px minmax(0,1fr); gap: 12px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--rule); }
+  .spec-row .n { font: 12px var(--mono); color: var(--ink-2); }
+  .spec-row .v { font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+  .spec-row .s { white-space: nowrap; overflow: hidden; line-height: 1.05; }
+  .spec-row.hl .n { color: var(--s1); font-weight: 600; }
+
+  .out-tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--rule); background: transparent; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12.5px; }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  pre { margin: 0; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px; font: 12px/1.6 var(--mono); overflow-x: auto; max-height: 360px; }
+  .out-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+  .toast { font-size: 12px; color: var(--good); }
+  .explain { color: var(--ink-2); font-size: 13px; max-width: 72ch; margin: 0; }
+
+  /* Present */
+  .present { display: grid; gap: 20px; }
+  .present-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px 24px; }
+  .present-head h2 { margin: 0 0 4px; }
+  .present-title { font: 500 24px/1.2 var(--serif); margin: 0; text-wrap: balance; }
+  .present-note { margin: 4px 0 0; color: var(--ink-2); max-width: 70ch; }
+  .widths { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); }
+  .widths input { width: 76px; }
+  .board { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; display: grid; gap: 14px; }
+  .board-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+  .board-w { font: 600 20px/1.2 var(--mono); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .board-w small { font: 500 12px var(--sans); color: var(--muted); margin-left: 8px; letter-spacing: 0; }
+  .story { margin: 0; font: 400 19px/1.35 var(--serif); max-width: 60ch; text-wrap: pretty; }
+  .story b { font-weight: 500; color: var(--s1); }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  @media (max-width: 720px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+  .pair figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+  .pair figcaption { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; color: var(--muted); }
+  .pair figure.proposed figcaption { color: var(--s1); }
+  .frame-box { position: relative; overflow: hidden; border: 1px solid var(--rule); border-radius: 6px; background: var(--frame); }
+  .pair figure.proposed .frame-box { border-color: var(--s1); }
+  .frame { position: absolute; top: 0; left: 0; transform-origin: 0 0; color: var(--frame-ink); padding: 72px 80px 80px; }
+  .frame p, .frame h3 { margin: 0; }
+  .frame .f-eyebrow { text-transform: uppercase; letter-spacing: .08em; opacity: .7; margin-bottom: 1.4em; }
+  .frame .f-head { font-weight: 400; line-height: 1.04; letter-spacing: -.015em; max-width: 14em; }
+  .frame .f-stand { line-height: 1.2; margin-top: .6em; max-width: 26em; opacity: .85; }
+  .frame .f-body { line-height: 1.55; margin-top: 1.6em; max-width: 34em; }
+  .frame .f-meta { margin-top: 1.4em; font-variant-numeric: tabular-nums; }
+  .diff td, .diff th { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 12.5px; }
+  .diff td:first-child, .diff th:first-child { text-align: left; }
+  .diff th { font-family: var(--sans); }
+  .diff .up { color: var(--s1); }
+  .diff .down { color: var(--s2); }
+  .diff .same { color: var(--muted); }
+  @media (prefers-reduced-motion: no-preference) { .series { transition: stroke .15s; } }
+</style>
+
+<script>var module = { exports: {} };</script>
+<script src="core.js"></script>
+<script>if (!module.exports.calculateFluid) document.write('<script src="../core.js"><\/script>');</script>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Ruler studio</h1>
+      <p class="lede">Set each type size at a few anchor widths and it grows in a straight line between them, with no jumps at breakpoints. Every number and every line of CSS here comes from <code>postcss-ruler/core</code>, the same code the plugin runs.</p>
+    </div>
+    <div class="views" role="group" aria-label="View">
+      <button type="button" id="viewTune" aria-pressed="true">Tune</button>
+      <button type="button" id="viewPresent" aria-pressed="false">Present</button>
+    </div>
+  </header>
+
+  <section class="bar" aria-label="Proposals">
+    <label for="proposalSel">Proposal</label>
+    <select id="proposalSel" class="sel"></select>
+    <button class="btn small" id="saveOpen" type="button">Save as proposal</button>
+    <button class="btn small" id="removeBtn" type="button" hidden>Remove</button>
+    <span class="status grow" id="barStatus" role="status"></span>
+    <form class="save-form" id="saveForm" hidden>
+      <input type="text" id="saveName" placeholder="Name, e.g. Ease off after Display" aria-label="Proposal name" required>
+      <input type="text" id="saveNote" placeholder="One line on what changed (optional)" aria-label="Note">
+      <button class="btn primary small" type="submit">Save</button>
+      <button class="btn small" type="button" id="saveCancel">Cancel</button>
+    </form>
+    <div class="fallback" id="fallback" hidden>
+      <p class="hint" id="fallbackMsg"></p>
+      <div class="row-actions" style="margin:0"><button class="btn small" id="fallbackCopy" type="button">Copy proposal JSON</button></div>
+    </div>
+  </section>
+
+  <div id="tune" class="layout">
+    <div>
+      <section class="panel" aria-labelledby="h-vp">
+        <div class="preset-row">
+          <label for="preset" style="font-weight:600">Start from</label>
+          <select id="preset" class="sel">
+            <option value="figma">Christie's Figma scale</option>
+            <option value="lightship">Lightship example (two-slope)</option>
+          </select>
+          <button class="btn" id="resetBtn" type="button">Reset</button>
+        </div>
+        <details class="import" id="importBox">
+          <summary>Import from Figma, a sheet or JSON</summary>
+          <textarea id="importText" spellcheck="false" aria-label="Paste scale JSON or a table" placeholder="Paste a table copied from the Figma variables panel or a sheet:
+Token	Mobile	Desktop	Display	Display plus
+5xl	48	56	72	84
+
+or scale JSON:
+{ &quot;text&quot;: { &quot;anchors&quot;: [390, 1024, 1920, 2560], &quot;pairs&quot;: { &quot;5xl&quot;: [48, 56, 72, 84] } } }"></textarea>
+          <div class="row-actions">
+            <button class="btn primary" id="importBtn" type="button">Import</button>
+            <span class="status" id="importStatus" role="status"></span>
+          </div>
+          <p class="hint" style="margin-top:8px">Table columns match the anchors below by name, or by a width in the header (<code style="font-family:var(--mono)">Mobile 390</code>). Other columns, like iOS App, are skipped.</p>
+        </details>
+      </section>
+
+      <section class="panel" aria-labelledby="h-anc">
+        <h2 id="h-anc">Anchor viewports</h2>
+        <div class="tbl-wrap">
+          <table class="anchors">
+            <thead><tr><th scope="col">Name</th><th scope="col">Breakpoint from</th><th scope="col" class="anc">Anchor at</th></tr></thead>
+            <tbody id="anchorBody"></tbody>
+          </table>
+        </div>
+        <p class="hint" style="margin-top:8px"><b>Breakpoint from</b> is where today's stepped size switches on. <b>Anchor at</b> is the width where the fluid size exactly equals the designed value. Set it to the width of the Figma frame each size was designed in.</p>
+
+        <div class="ease">
+          <h2 style="margin:0">Ease off on big screens</h2>
+          <div class="ease-row">
+            <label for="easeFrom" style="font-size:12px;color:var(--ink-2)">After</label>
+            <select id="easeFrom" class="sel"></select>
+            <label for="easePct" style="font-size:12px;color:var(--ink-2)">grow at</label>
+            <input id="easePct" type="range" min="0" max="100" step="5" value="30">
+            <output id="easeOut" for="easePct">30%</output>
+          </div>
+          <div class="ease-row">
+            <button class="btn primary" id="easeBtn" type="button">Apply to all tokens</button>
+            <span class="hint" id="easeHint"></span>
+          </div>
+          <p class="hint">Rewrites the sizes at every later anchor so each token keeps growing at that percentage of its rate in the segment just before. Reset brings the original values back.</p>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-tok">
+        <h2 id="h-tok">Tokens (px)</h2>
+        <div class="prefix-row">
+          <label for="prefix">Prefix</label>
+          <input id="prefix" type="text" spellcheck="false" autocomplete="off">
+          <span class="hint" id="prefixHint"></span>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr id="tokHead"></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="row-actions">
+          <button class="btn" id="addBtn" type="button">Add token</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="viewer">
+      <section class="panel" aria-labelledby="h-chart">
+        <div class="scrub">
+          <label for="vw" id="h-chart">Viewport</label>
+          <input id="vw" type="range" step="10">
+          <span class="read"><span id="vwOut"></span>px</span>
+          <span class="pill" id="stagePill"></span>
+          <label class="check" style="font-weight:400"><input id="showSteps" type="checkbox" checked> Show today's steps</label>
+        </div>
+        <div class="chart-wrap" id="chartWrap">
+          <svg id="chart" viewBox="0 0 900 420" role="img" aria-label="Rendered size of each token across the viewport range, fluid against today's steps"></svg>
+          <div class="tip" id="tip" hidden></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-spec">
+        <div class="spec-head">
+          <h2 id="h-spec">Specimen at <span id="specVw"></span>px</h2>
+          <label style="font-size:12px;color:var(--ink-2)">Shared tokens in <select id="face" class="sel">
+            <option value="serif">Serif</option>
+            <option value="sans">Sans</option>
+          </select></label>
+        </div>
+        <div class="spec" id="spec"></div>
+        <p class="hint" style="margin-top:10px">Each line is set with the exported CSS, with the viewport swapped for the width above. Stand-in faces: Newsreader for ABC Arizona Serif, Instrument Sans for ABC Arizona Sans. Tokens ending -serif or -sans use their own face.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-out">
+        <h2 id="h-out">Export</h2>
+        <div class="out-tabs" role="tablist" id="outTabs"></div>
+        <pre id="out" tabindex="0"></pre>
+        <div class="out-foot">
+          <p class="explain" id="outNote"></p>
+          <button class="btn primary" id="copyBtn" type="button">Copy</button>
+          <span class="toast" id="toast" role="status"></span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="present" class="present" hidden>
+    <div class="present-head">
+      <div>
+        <h2>Today's steps against the fluid proposal</h2>
+        <p class="present-title" id="presentTitle"></p>
+        <p class="present-note" id="presentNote"></p>
+      </div>
+      <div class="widths">
+        <span>Widths</span>
+        <input type="number" id="pw0" step="10" min="320" aria-label="First width">
+        <input type="number" id="pw1" step="10" min="320" aria-label="Second width">
+        <input type="number" id="pw2" step="10" min="320" aria-label="Third width">
+      </div>
+    </div>
+    <div id="boards" class="present"></div>
+    <section class="panel" aria-labelledby="h-diff" data-comment-target>
+      <h2 id="h-diff">Every size, today → proposed (px)</h2>
+      <div class="tbl-wrap"><table class="diff" id="diff"></table></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const Core = module.exports;
+  const PRESETS = {
+    figma: {
+      prefix: "text",
+      anchors: [
+        { name: "Mobile", from: 390, at: 390 },
+        { name: "Desktop", from: 1024, at: 1024 },
+        { name: "Display", from: 1920, at: 1920 },
+        { name: "Display plus", from: 2560, at: 2560 },
+      ],
+      tokens: [
+        ["5xl", 48, 56, 72, 84], ["4xl", 36, 48, 64, 68], ["3xl", 28, 32, 48, 56],
+        ["2xl-sans", 24, 28, 32, 36], ["2xl-serif", 24, 28, 36, 42],
+        ["xl-sans", 18, 18, 20, 24], ["xl-serif", 20, 24, 28, 36],
+        ["lg-sans", 14, 16, 20, 24], ["lg-serif", 16, 20, 24, 28],
+        ["md", 18, 18, 20, 20], ["sm", 16, 16, 20, 24], ["xs", 14, 14, 16, 20],
+        ["xxs", 12, 14, 14, 14], ["xxxs", 12, 12, 14, 14],
+      ],
+    },
+    lightship: {
+      prefix: "text",
+      anchors: [
+        { name: "Small", from: 320, at: 320 },
+        { name: "Change point", from: 1440, at: 1440 },
+        { name: "Large", from: 2500, at: 2500 },
+      ],
+      tokens: [
+        ["heading-4xl", 88, 218, 255], ["heading-3xl", 64, 148, 172], ["heading-2xl", 33, 76, 88],
+        ["heading-xl", 38, 72, 82], ["heading-lg", 34, 64, 73], ["heading-md", 24, 48, 55],
+        ["heading-sm", 24, 34, 37], ["heading-xs", 22, 24, 25], ["heading-2xs", 18, 20, 21], ["text-md", 14, 16, 17],
+      ],
+    },
+  };
+  const KEY = "ruler-studio-v1";
+  const fresh = p => ({ preset: p, proposal: null, presentWidths: [1440, 1920, 2560], ...structuredClone(PRESETS[p]) });
+  let S;
+  try { S = JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { S = null; }
+  if (!S || !S.anchors || !S.tokens) S = fresh("figma");
+  S.prefix = S.prefix || "text";
+  S.presentWidths = S.presentWidths || [1440, 1920, 2560];
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+  const $ = id => document.getElementById(id);
+  const N = () => S.anchors.length;
+  const vals = t => t.slice(1, 1 + N());
+  const family = n => /-serif$/.test(n) ? "serif" : /-sans$/.test(n) ? "sans" : "shared";
+  const fmt = n => String(Math.round(n * 10) / 10);
+
+  // ---------- maths: straight lines for drawing, core.js for the CSS ----------
+  function fluid(t, w) {
+    const A = S.anchors, v = vals(t);
+    if (w <= A[0].at) return v[0];
+    for (let i = 0; i < A.length - 1; i++) {
+      if (w <= A[i + 1].at) return v[i] + (v[i + 1] - v[i]) * (w - A[i].at) / (A[i + 1].at - A[i].at);
+    }
+    return v[v.length - 1];
+  }
+  function stepped(t, w) {
+    const A = S.anchors, v = vals(t);
+    let out = v[0];
+    for (let i = 0; i < A.length; i++) if (w >= A[i].from) out = v[i];
+    return out;
+  }
+  const scaleOf = st => ({
+    [st.prefix]: {
+      anchors: st.anchors.map(a => ({ name: a.name, width: a.at })),
+      pairs: Object.fromEntries(st.tokens.map(t => [t[0], t.slice(1, 1 + st.anchors.length)])),
+    },
+  });
+  function tokenCss(t) {
+    try { return Core.calculateFluid({ values: vals(t), anchors: S.anchors.map(a => a.at) }); }
+    catch (e) { return null; }
+  }
+  // The exported value with the viewport swapped for a fixed width
+  const atWidth = (css, w) => css
+    .replace(/100vw/g, w + "px")
+    .replace(/(-?[\d.]+)vw/g, (m, n) => (n * w / 100).toFixed(4) + "px");
+  const sizeAt = (t, w) => { const css = tokenCss(t); return css ? atWidth(css, w) : fluid(t, w) + "px"; };
+
+  // ---------- anchors ----------
+  function buildAnchors() {
+    const body = $("anchorBody"); body.replaceChildren();
+    S.anchors.forEach((a, i) => {
+      const tr = document.createElement("tr");
+      const tdN = document.createElement("td");
+      const n = document.createElement("input"); n.type = "text"; n.value = a.name; n.id = "anc-name-" + i; n.setAttribute("aria-label", "Anchor name");
+      n.addEventListener("input", () => { a.name = n.value || "Anchor"; buildTokHead(); buildEaseSelect(); edited(); update(); });
+      tdN.appendChild(n);
+      const mk = (key, label) => {
+        const td = document.createElement("td");
+        const inp = document.createElement("input"); inp.type = "number"; inp.step = "10"; inp.value = a[key]; inp.id = `anc-${key}-${i}`; inp.setAttribute("aria-label", a.name + " " + label);
+        inp.addEventListener("change", () => {
+          const v = parseInt(inp.value, 10);
+          const prev = S.anchors[i - 1], nxt = S.anchors[i + 1];
+          const ok = !isNaN(v) && v > 0 && (!prev || v > prev[key]) && (!nxt || v < nxt[key]);
+          if (!ok) { inp.value = a[key]; return; }
+          a[key] = v; edited(); update();
+        });
+        td.appendChild(inp); return td;
+      };
+      tr.append(tdN, mk("from", "breakpoint"), mk("at", "anchor width"));
+      body.appendChild(tr);
+    });
+  }
+  function buildTokHead() {
+    const h = $("tokHead"); h.replaceChildren();
+    const th = (txt, cls) => { const e = document.createElement("th"); e.scope = "col"; e.textContent = txt; if (cls) e.className = cls; h.appendChild(e); };
+    th("Name"); S.anchors.forEach(a => th(a.name, "anc")); th("");
+  }
+  function buildEaseSelect() {
+    const sel = $("easeFrom"); const cur = sel.value; sel.replaceChildren();
+    S.anchors.forEach((a, i) => { if (i === 0 || i === N() - 1) return; const o = document.createElement("option"); o.value = i; o.textContent = a.name; sel.appendChild(o); });
+    if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+    $("easeBtn").disabled = sel.options.length === 0;
+    $("easeHint").textContent = sel.options.length ? "" : "Needs at least three anchors.";
+  }
+
+  // ---------- tokens table ----------
+  let hl = null;
+  const tbody = $("tbody");
+  function buildTable() {
+    tbody.replaceChildren();
+    S.tokens.forEach((t, idx) => {
+      const tr = document.createElement("tr");
+      const tdN = document.createElement("td");
+      const n = document.createElement("input"); n.type = "text"; n.value = t[0]; n.id = "tok-name-" + idx; n.setAttribute("aria-label", "Token name");
+      n.addEventListener("input", () => { t[0] = n.value.trim() || "token"; edited(); update(); });
+      tdN.appendChild(n); tr.appendChild(tdN);
+      S.anchors.forEach((a, j) => {
+        const td = document.createElement("td");
+        const i = document.createElement("input"); i.type = "number"; i.step = "1"; i.min = "1"; i.value = t[j + 1]; i.id = `tok-${idx}-${j}`;
+        i.setAttribute("aria-label", `${t[0]} at ${a.name}`);
+        i.addEventListener("input", () => { const v = parseFloat(i.value); if (!isNaN(v) && v > 0) { t[j + 1] = v; edited(); update(); } });
+        td.appendChild(i); tr.appendChild(td);
+      });
+      const tdX = document.createElement("td");
+      const x = document.createElement("button"); x.className = "rm"; x.type = "button"; x.textContent = "×"; x.setAttribute("aria-label", "Remove " + t[0]);
+      x.addEventListener("click", () => { S.tokens.splice(idx, 1); edited(); rebuild(); });
+      tdX.appendChild(x); tr.appendChild(tdX);
+      tr.addEventListener("pointerenter", () => setHl(idx));
+      tr.addEventListener("pointerleave", () => setHl(null));
+      tr.addEventListener("focusin", () => setHl(idx));
+      tbody.appendChild(tr);
+    });
+  }
+  function paintRows() { [...tbody.children].forEach((tr, idx) => tr.classList.toggle("hl", hl === idx)); }
+
+  // ---------- chart ----------
+  const svg = $("chart"), NS = "http://www.w3.org/2000/svg";
+  const W = 900, H = 420, M = { l: 44, r: 96, t: 14, b: 38 };
+  let X0, X1, Y1, px, py, paths = [], steps = [], labels = [], cross;
+  const el = (tag, a, p = svg) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const niceMax = v => { for (const s of [10, 20, 40, 50, 100]) if (v / s <= 8) return Math.ceil(v / s) * s; return Math.ceil(v / 100) * 100; };
+  function range() {
+    const A = S.anchors, first = Math.min(A[0].at, A[0].from), last = Math.max(A[N() - 1].at, A[N() - 1].from);
+    return [first, last + Math.round((last - first) * 0.1 / 10) * 10];
+  }
+  function drawChart() {
+    svg.replaceChildren(); paths = []; steps = []; labels = [];
+    [X0, X1] = range();
+    const top = Math.max(...S.tokens.map(t => Math.max(...vals(t))), 16);
+    Y1 = niceMax(top * 1.08);
+    const tick = Y1 <= 80 ? 10 : Y1 <= 160 ? 20 : Y1 <= 320 ? 40 : 100;
+    px = w => M.l + (w - X0) / (X1 - X0) * (W - M.l - M.r);
+    py = v => H - M.b - v / Y1 * (H - M.t - M.b);
+    S.anchors.forEach((a, i) => {
+      if (i < N() - 1) el("rect", { x: px(a.at), y: M.t, width: px(S.anchors[i + 1].at) - px(a.at), height: H - M.t - M.b, fill: i % 2 ? "var(--s2-wash)" : "var(--s1-wash)" });
+    });
+    for (let v = 0; v <= Y1; v += tick) {
+      el("line", { x1: M.l, x2: W - M.r, y1: py(v), y2: py(v), stroke: "var(--rule)", "stroke-width": 1 });
+      const t = el("text", { x: M.l - 8, y: py(v) + 4, "text-anchor": "end" }); t.textContent = v;
+    }
+    S.anchors.forEach((a, i) => {
+      el("line", { x1: px(a.at), x2: px(a.at), y1: M.t, y2: H - M.b, stroke: "var(--s1)", "stroke-width": 1, "stroke-dasharray": "2 3", opacity: .5 });
+      const t = el("text", { x: px(a.at), y: H - M.b + 16, "text-anchor": i === 0 ? "start" : "middle", style: "fill:var(--s1)" }); t.textContent = a.at;
+      const n = el("text", { x: px(a.at), y: H - M.b + 29, "text-anchor": i === 0 ? "start" : "middle", style: "fill:var(--muted);font-family:var(--sans)" }); n.textContent = a.name;
+    });
+    if ($("showSteps").checked) {
+      S.tokens.forEach(t => {
+        let d = "", prev = null;
+        for (let w = X0; w <= X1; w += 2) {
+          const v = stepped(t, w);
+          if (prev !== null && v !== prev) d += "L" + px(w).toFixed(1) + "," + py(prev).toFixed(1);
+          d += (d ? "L" : "M") + px(w).toFixed(1) + "," + py(v).toFixed(1); prev = v;
+        }
+        steps.push(el("path", { d, class: "series step" }));
+      });
+    }
+    S.tokens.forEach(t => {
+      let d = "";
+      for (let w = X0; w <= X1; w += 5) d += (d ? "L" : "M") + px(w).toFixed(1) + "," + py(fluid(t, w)).toFixed(1);
+      paths.push(el("path", { d, class: "series" }));
+    });
+    const ends = S.tokens.map((t, i) => ({ i, y: py(fluid(t, X1)) })).sort((a, b) => a.y - b.y);
+    for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 11) ends[k].y = ends[k - 1].y + 11;
+    ends.forEach(e => { const t = el("text", { x: W - M.r + 8, y: e.y + 4, class: "lbl" }); t.textContent = S.tokens[e.i][0]; labels[e.i] = t; });
+    cross = el("line", { y1: M.t, y2: H - M.b, stroke: "var(--ink-2)", "stroke-width": 1 });
+    const hit = el("rect", { x: M.l, y: M.t, width: W - M.l - M.r, height: H - M.t - M.b, fill: "transparent", style: "cursor:crosshair" });
+    hit.addEventListener("pointermove", onMove);
+    hit.addEventListener("pointerleave", () => { $("tip").hidden = true; });
+    paintSeries();
+  }
+  function paintSeries() {
+    S.tokens.forEach((t, i) => {
+      const cls = hl === i ? " hl" : "";
+      if (paths[i]) paths[i].setAttribute("class", "series" + cls);
+      if (steps[i]) steps[i].setAttribute("class", "series step" + cls);
+      if (labels[i]) labels[i].setAttribute("class", "lbl" + cls);
+    });
+    if (hl !== null && paths[hl]) { if (steps[hl]) svg.insertBefore(steps[hl], cross); svg.insertBefore(paths[hl], cross); }
+  }
+  function onMove(e) {
+    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const sp = pt.matrixTransform(svg.getScreenCTM().inverse());
+    let w = Math.round((X0 + (sp.x - M.l) / (W - M.l - M.r) * (X1 - X0)) / 10) * 10;
+    w = Math.min(Math.max(w, X0), X1);
+    $("vw").value = w; setVw(w);
+    const tip = $("tip"); tip.replaceChildren();
+    const h = document.createElement("div"); h.className = "t-h"; h.textContent = w + "px · fluid" + ($("showSteps").checked ? " / today" : ""); tip.appendChild(h);
+    S.tokens.forEach(t => {
+      const r = document.createElement("div"); r.className = "t-r";
+      const a = document.createElement("span"); a.textContent = t[0];
+      const b = document.createElement("b"); b.textContent = fluid(t, w).toFixed(1);
+      if ($("showSteps").checked) { const i = document.createElement("i"); i.textContent = stepped(t, w); b.appendChild(i); }
+      r.append(a, b); tip.appendChild(r);
+    });
+    tip.hidden = false;
+    const box = $("chartWrap").getBoundingClientRect();
+    let left = e.clientX - box.left + 16;
+    if (left + tip.offsetWidth > box.width) left = e.clientX - box.left - tip.offsetWidth - 16;
+    tip.style.left = Math.max(0, left) + "px";
+    tip.style.top = Math.max(0, Math.min(e.clientY - box.top - tip.offsetHeight / 2, box.height - tip.offsetHeight)) + "px";
+  }
+
+  // ---------- specimen ----------
+  function sampleFor(t) {
+    const v = Math.max(...vals(t));
+    if (v >= 40) return "Radiant Modernism";
+    if (v >= 22) return "Twentieth Century Evening Sale";
+    return "Lot 42 · Estimate £40,000 to £60,000";
+  }
+  const faceFor = (name, fallback) => {
+    const fam = family(name);
+    return (fam === "shared" ? fallback : fam) === "serif" ? "var(--serif)" : "var(--sans)";
+  };
+  function buildSpec() {
+    const sp = $("spec"); sp.replaceChildren();
+    S.tokens.forEach((t, i) => {
+      const r = document.createElement("div"); r.className = "spec-row";
+      const n = document.createElement("span"); n.className = "n";
+      const v = document.createElement("span"); v.className = "v";
+      const s = document.createElement("span"); s.className = "s";
+      r.append(n, v, s); sp.appendChild(r);
+      r.addEventListener("pointerenter", () => setHl(i));
+      r.addEventListener("pointerleave", () => setHl(null));
+    });
+  }
+  function paintSpec(w) {
+    const shared = $("face").value;
+    [...$("spec").children].forEach((r, i) => {
+      const t = S.tokens[i]; if (!t) return;
+      const s = r.children[2];
+      r.children[0].textContent = t[0];
+      s.textContent = sampleFor(t);
+      s.style.fontSize = sizeAt(t, w);
+      s.style.fontFamily = faceFor(t[0], shared);
+      s.style.letterSpacing = s.style.fontFamily === "var(--serif)" ? "-.01em" : "-.02em";
+      r.children[1].textContent = fmt(parseFloat(getComputedStyle(s).fontSize));
+      r.classList.toggle("hl", hl === i);
+    });
+    $("specVw").textContent = w;
+  }
+
+  // ---------- export ----------
+  const TABS = [
+    { id: "css", label: "CSS variables", run: s => Core.toCss(s),
+      note: () => "Paste into your global stylesheet. On christies.com this is <code>tokens.css</code>, and the Tailwind 3 tab points at it." },
+    { id: "tw4", label: "Tailwind 4 @theme", run: s => Core.toTailwind4(s),
+      note: () => `For Tailwind 4 without the plugin. Gives <code>${esc(S.prefix)}-*</code> utilities, e.g. <code>${esc(S.prefix)}-${esc((S.tokens[0] || ["md"])[0])}</code>.` },
+    { id: "tw3", label: "Tailwind 3", run: s => Core.toTailwind3(s),
+      note: () => `Save as <code>tokens/${esc(S.prefix)}.tw.js</code> and set <code>theme.extend.fontSize</code> to <code>require("./tokens/${esc(S.prefix)}.tw.js").${esc(S.prefix)}</code>. Needs the CSS variables tab too.` },
+    { id: "ruler", label: "@ruler scale()", run: s => Core.toRulerConfig(s),
+      note: () => "For a stylesheet that runs through postcss-ruler. Put it inside <code>@theme</code> with Tailwind 4, or <code>:root</code> otherwise." },
+    { id: "json", label: "Scale JSON", run: s => JSON.stringify(s, null, 2) + "\n",
+      note: () => "The shared format. Pass it as the plugin's <code>scales</code> option, or paste it back into Import." },
+  ];
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let tab = "css";
+  function buildTabs() {
+    const box = $("outTabs"); box.replaceChildren();
+    TABS.forEach(t => {
+      const b = document.createElement("button"); b.className = "tab"; b.type = "button"; b.setAttribute("role", "tab"); b.id = "tab-" + t.id;
+      b.textContent = t.label; b.setAttribute("aria-selected", t.id === tab);
+      b.addEventListener("click", () => { tab = t.id; buildTabs(); output(); });
+      box.appendChild(b);
+    });
+  }
+  function output() {
+    const t = TABS.find(x => x.id === tab);
+    try { $("out").textContent = t.run(scaleOf(S)); }
+    catch (e) { $("out").textContent = "/* " + e.message + " */"; }
+    $("outNote").innerHTML = t.note();
+  }
+
+  // ---------- import ----------
+  function importJson(text) {
+    let obj;
+    try { obj = JSON.parse(text); } catch (e) { throw new Error("That looks like JSON but doesn't parse: " + e.message); }
+    let prefix = S.prefix, cfg = obj;
+    if (!obj.pairs) {
+      const key = Object.keys(obj).find(k => obj[k] && obj[k].pairs);
+      if (!key) throw new Error("No scale found. Expected { \"text\": { \"anchors\": [...], \"pairs\": {...} } }.");
+      prefix = key; cfg = obj[key];
+    }
+    const resolved = Core.resolveScale(cfg);
+    const anchors = resolved.anchors.map(a => ({ name: a.name, from: a.width, at: a.width }));
+    const tokens = resolved.pairs.map(({ name, values }) => {
+      if (values.length !== anchors.length) throw new Error(`"${name}" has ${values.length} values but there are ${anchors.length} anchors.`);
+      return [name, ...values.map(Number)];
+    });
+    return { state: { prefix, anchors, tokens }, note: `${tokens.length} tokens at ${anchors.length} anchors` };
+  }
+  function importTable(text) {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) throw new Error("Paste a header row and at least one token row.");
+    const delim = lines[0].includes("\t") ? "\t" : lines[0].includes(";") ? ";" : ",";
+    const rows = lines.map(l => l.split(delim).map(c => c.trim().replace(/^"|"$/g, "")));
+    const head = rows[0];
+    const cols = [], skipped = [];
+    head.forEach((h, j) => {
+      if (j === 0) return;
+      const num = h.match(/(\d{3,4})/);
+      const known = S.anchors.find(a => a.name.toLowerCase() === h.replace(/\s*\d{3,4}\s*(px)?/i, "").trim().toLowerCase());
+      if (num) cols.push({ j, name: h.replace(/\s*\d{3,4}\s*(px)?/i, "").trim() || num[1] + "px", at: +num[1], from: known ? known.from : +num[1] });
+      else if (known) cols.push({ j, name: known.name, at: known.at, from: known.from });
+      else skipped.push(h || "column " + (j + 1));
+    });
+    if (cols.length < 2) throw new Error("Couldn't match two columns to anchors. Name the columns like the anchors below, or add a width, e.g. \"Mobile 390\".");
+    cols.sort((a, b) => a.at - b.at);
+    for (let k = 1; k < cols.length; k++) if (cols[k].at === cols[k - 1].at) throw new Error(`Two columns land on ${cols[k].at}px.`);
+    const tokens = [], bad = [];
+    rows.slice(1).forEach(r => {
+      const v = cols.map(c => parseFloat((r[c.j] || "").replace(/px$/i, "")));
+      if (!r[0] || v.some(x => isNaN(x) || x <= 0)) { bad.push(r[0] || "(blank)"); return; }
+      tokens.push([r[0].replace(/\//g, "-").replace(/\s+/g, "-").toLowerCase(), ...v]);
+    });
+    if (!tokens.length) throw new Error("No rows had a number in every anchor column.");
+    let note = `${tokens.length} tokens at ${cols.length} anchors`;
+    if (skipped.length) note += `. Skipped ${skipped.join(", ")}`;
+    if (bad.length) note += `. Left out rows without every value: ${bad.join(", ")}`;
+    return { state: { prefix: S.prefix, anchors: cols.map(c => ({ name: c.name, from: c.from, at: c.at })), tokens }, note };
+  }
+  $("importBtn").addEventListener("click", () => {
+    const text = $("importText").value.trim(), st = $("importStatus");
+    st.className = "status";
+    if (!text) { st.textContent = "Paste something first."; st.classList.add("bad"); return; }
+    try {
+      const { state, note } = text.startsWith("{") ? importJson(text) : importTable(text);
+      Object.assign(S, state, { proposal: null });
+      $("vw").value = S.anchors[Math.min(1, N() - 1)].at;
+      rebuild();
+      st.textContent = "Imported " + note + "."; st.classList.add("good");
+    } catch (e) { st.textContent = e.message.replace(/^\[postcss-ruler\] /, ""); st.classList.add("bad"); }
+  });
+
+  // ---------- present ----------
+  function roles() {
+    const n = N(), last = t => t[n];
+    const desc = [...S.tokens].sort((a, b) => last(b) - last(a));
+    const asc = [...desc].reverse();
+    const head = desc[0];
+    const stand = desc.find((t, i) => i > 0 && last(t) <= last(head) * 0.55 && family(t[0]) !== "sans") || desc[Math.floor(desc.length / 3)];
+    const body = S.tokens.find(t => t[0] === "md") || [...S.tokens].sort((a, b) => Math.abs(a[1] - 17) - Math.abs(b[1] - 17))[0];
+    const cap = S.tokens.find(t => t[0] === "xs") || asc.find(t => t !== body) || asc[0];
+    return { head, stand, body, cap };
+  }
+  const stageAt = w => { let name = S.anchors[0].name; S.anchors.forEach(a => { if (w >= a.from) name = a.name; }); return name; };
+  function story(w) {
+    const diffs = S.tokens.map(t => ({ t, today: stepped(t, w), next: fluid(t, w) })).map(d => ({ ...d, delta: d.next - d.today }));
+    const changed = diffs.filter(d => Math.abs(d.delta) >= 0.5);
+    const frag = document.createDocumentFragment();
+    const txt = s => frag.appendChild(document.createTextNode(s));
+    const bold = s => { const b = document.createElement("b"); b.textContent = s; frag.appendChild(b); };
+    if (!changed.length) { txt(`At ${w}px every size is exactly as designed today.`); return frag; }
+    const big = changed.reduce((a, b) => Math.abs(b.delta) > Math.abs(a.delta) ? b : a);
+    txt(`At ${w}px the ${big.t[0]} is `); bold(fmt(big.next) + "px"); txt(`, not ${fmt(big.today)}px. `);
+    const same = S.tokens.length - changed.length;
+    txt(!same ? "Every size changes." : `${changed.length} of ${S.tokens.length} sizes change; ${same === 1 ? "the other stays" : "the rest stay"} as they are.`);
+    return frag;
+  }
+  function frameFor(w, sizeOf) {
+    const r = roles(), shared = $("face").value;
+    const f = document.createElement("div"); f.className = "frame"; f.style.width = w + "px";
+    const part = (tag, cls, tok, text, fallbackFace) => {
+      const e = document.createElement(tag); e.className = cls; e.textContent = text;
+      if (tok) { e.style.fontSize = sizeOf(tok); e.style.fontFamily = faceFor(tok[0], fallbackFace); }
+      f.appendChild(e);
+    };
+    part("p", "f-eyebrow", r.cap, "Twentieth Century Evening Sale · Lot 42", "sans");
+    part("h3", "f-head", r.head, "Radiant Modernism", shared);
+    part("p", "f-stand", r.stand, "Masterworks from a private European collection", shared);
+    part("p", "f-body", r.body, "Assembled over four decades, the collection traces the arc of European modernism from the Bauhaus workshops to the post-war avant-garde, with works shown together here for the first time.", "sans");
+    part("p", "f-meta", r.cap, "Estimate £40,000 to £60,000", "sans");
+    return f;
+  }
+  const ro = new ResizeObserver(entries => entries.forEach(e => fit(e.target)));
+  function fit(box) {
+    const f = box.firstChild; if (!f) return;
+    const k = box.clientWidth / parseFloat(f.style.width);
+    f.style.transform = `scale(${k})`;
+    box.style.height = Math.ceil(f.offsetHeight * k) + "px";
+  }
+  let comments = null;
+  function buildPresent() {
+    const p = currentProposal();
+    $("presentTitle").textContent = p ? p.name : "Working copy";
+    $("presentNote").textContent = p ? (p.note || "") : "Not saved as a proposal yet.";
+    S.presentWidths.forEach((w, i) => { $("pw" + i).value = w; });
+    ro.disconnect();
+    const boards = $("boards"); boards.replaceChildren();
+    S.presentWidths.forEach(w => {
+      const b = document.createElement("section"); b.className = "board"; b.setAttribute("data-comment-target", "");
+      b.setAttribute("aria-label", w + "px");
+      const hd = document.createElement("div"); hd.className = "board-head";
+      const bw = document.createElement("div"); bw.className = "board-w"; bw.textContent = w + "px";
+      const sm = document.createElement("small"); sm.textContent = stageAt(w) + " today"; bw.appendChild(sm);
+      hd.appendChild(bw);
+      if (comments) {
+        const c = document.createElement("button"); c.className = "btn small"; c.type = "button"; c.textContent = "Comment on " + w + "px";
+        c.addEventListener("click", () => { comments.openComposer({ element: b }).catch(() => {}); });
+        hd.appendChild(c);
+      }
+      const st = document.createElement("p"); st.className = "story"; st.appendChild(story(w));
+      const pair = document.createElement("div"); pair.className = "pair";
+      [["Today", t => stepped(t, w) + "px", ""], ["Proposed", t => sizeAt(t, w), "proposed"]].forEach(([label, sizeOf, cls]) => {
+        const fig = document.createElement("figure"); if (cls) fig.className = cls;
+        const cap = document.createElement("figcaption"); cap.textContent = label;
+        const box = document.createElement("div"); box.className = "frame-box";
+        box.appendChild(frameFor(w, sizeOf));
+        fig.append(cap, box); pair.appendChild(fig);
+        ro.observe(box);
+      });
+      b.append(hd, st, pair);
+      boards.appendChild(b);
+    });
+    [...boards.querySelectorAll(".frame-box")].forEach(fit);
+    buildDiff();
+  }
+  function buildDiff() {
+    const t = $("diff"); t.replaceChildren();
+    const thead = t.createTHead().insertRow();
+    const th = txt => { const e = document.createElement("th"); e.scope = "col"; e.textContent = txt; thead.appendChild(e); };
+    th("Token"); S.presentWidths.forEach(w => th(w + "px"));
+    const body = t.createTBody();
+    S.tokens.forEach(tok => {
+      const r = body.insertRow();
+      r.insertCell().textContent = tok[0];
+      S.presentWidths.forEach(w => {
+        const a = stepped(tok, w), b = fluid(tok, w), c = r.insertCell();
+        const d = b - a;
+        c.className = Math.abs(d) < 0.5 ? "same" : d > 0 ? "up" : "down";
+        c.textContent = Math.abs(d) < 0.5 ? fmt(a) : `${fmt(a)} → ${fmt(b)}`;
+      });
+    });
+  }
+  [0, 1, 2].forEach(i => $("pw" + i).addEventListener("change", e => {
+    const v = parseInt(e.target.value, 10);
+    if (isNaN(v) || v < 320) { e.target.value = S.presentWidths[i]; return; }
+    S.presentWidths[i] = v; save(); buildPresent();
+  }));
+
+  // ---------- views ----------
+  let view = "tune";
+  function setView(v) {
+    view = v;
+    $("tune").hidden = v !== "tune"; $("present").hidden = v !== "present";
+    $("viewTune").setAttribute("aria-pressed", v === "tune"); $("viewPresent").setAttribute("aria-pressed", v === "present");
+    if (v === "present") buildPresent();
+  }
+  $("viewTune").addEventListener("click", () => setView("tune"));
+  $("viewPresent").addEventListener("click", () => setView("present"));
+
+  // ---------- proposals (proposals.json, published beside the page) ----------
+  let proposals = [], artifact = null, pendingEntry = null;
+  const currentProposal = () => proposals.find(p => p.id === S.proposal) || null;
+  const barStatus = (msg, cls) => { const s = $("barStatus"); s.textContent = msg; s.className = "status grow" + (cls ? " " + cls : ""); };
+  function edited() {
+    if (S.proposal) { S.proposal = null; buildProposalSel(); barStatus("Edited. Save as a new proposal to keep it."); }
+  }
+  function buildProposalSel() {
+    const sel = $("proposalSel"); sel.replaceChildren();
+    const o = document.createElement("option"); o.value = ""; o.textContent = "Working copy"; sel.appendChild(o);
+    proposals.forEach(p => { const e = document.createElement("option"); e.value = p.id; e.textContent = p.name; sel.appendChild(e); });
+    sel.value = currentProposal() ? S.proposal : "";
+    $("removeBtn").hidden = !currentProposal() || !artifact;
+    $("removeBtn").textContent = "Remove";
+  }
+  function openProposal(id) {
+    const p = proposals.find(x => x.id === id); if (!p) return false;
+    Object.assign(S, structuredClone(p.state), { proposal: p.id });
+    $("vw").value = S.anchors[Math.min(1, N() - 1)].at;
+    rebuild();
+    barStatus(p.note || "");
+    return true;
+  }
+  $("proposalSel").addEventListener("change", e => {
+    if (e.target.value) openProposal(e.target.value);
+    else { S.proposal = null; buildProposalSel(); save(); barStatus(""); if (view === "present") buildPresent(); }
+  });
+  $("saveOpen").addEventListener("click", () => { $("saveForm").hidden = false; $("fallback").hidden = true; $("saveName").focus(); });
+  $("saveCancel").addEventListener("click", () => { $("saveForm").hidden = true; });
+  const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "proposal";
+  async function publishList(list) {
+    if (!artifact) throw { code: "not_granted" };
+    await artifact.publish({ "proposals.json": JSON.stringify(list, null, 2) + "\n" });
+  }
+  function showFallback(entry, code) {
+    pendingEntry = entry;
+    $("fallback").hidden = false;
+    $("fallbackMsg").textContent = code === "not_writer" || code === "not_granted"
+      ? "You can't save to this page. Copy the proposal and send it to whoever looks after the studio."
+      : "Saving isn't available in this view. Copy the proposal and add it to studio/proposals.json.";
+  }
+  $("saveForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const name = $("saveName").value.trim(); if (!name) return;
+    const entry = {
+      id: slug(name) + "-" + Date.now().toString(36).slice(-4),
+      name, note: $("saveNote").value.trim(), savedAt: new Date().toISOString(),
+      state: { prefix: S.prefix, anchors: structuredClone(S.anchors), tokens: structuredClone(S.tokens) },
+    };
+    barStatus("Saving…");
+    try {
+      await publishList([...proposals, entry]);
+      proposals.push(entry); S.proposal = entry.id; save();
+      $("saveForm").hidden = true; $("saveName").value = ""; $("saveNote").value = "";
+      buildProposalSel();
+      barStatus(`Saved. To share it, add #p-${entry.id} to the end of this page's link.`, "good");
+    } catch (err) {
+      if (err && err.code === "conflict") { barStatus("Someone else saved first. The page is reloading with their version; save again after.", "bad"); return; }
+      barStatus("Not saved.", "bad");
+      showFallback(entry, err && err.code);
+    }
+  });
+  $("fallbackCopy").addEventListener("click", async () => {
+    const txt = JSON.stringify(pendingEntry, null, 2);
+    try { await navigator.clipboard.writeText(txt); barStatus("Copied the proposal JSON.", "good"); }
+    catch (e) { $("fallbackMsg").textContent = txt; barStatus("Select the JSON below and copy it.", ""); }
+  });
+  let confirmRemove = false;
+  $("removeBtn").addEventListener("click", async () => {
+    const p = currentProposal(); if (!p) return;
+    if (!confirmRemove) { confirmRemove = true; $("removeBtn").textContent = `Remove "${p.name}"? Click again`; setTimeout(() => { confirmRemove = false; $("removeBtn").textContent = "Remove"; }, 4000); return; }
+    confirmRemove = false;
+    try {
+      await publishList(proposals.filter(x => x.id !== p.id));
+      proposals = proposals.filter(x => x.id !== p.id); S.proposal = null; save(); buildProposalSel(); barStatus("Removed.", "good");
+    } catch (err) { barStatus("Couldn't remove it here" + (err && err.code ? ` (${err.code})` : "") + ".", "bad"); }
+  });
+
+  // ---------- state ----------
+  function setHl(i) { hl = i; paintSeries(); paintRows(); paintSpec(+$("vw").value); }
+  function setVw(w) {
+    $("vwOut").textContent = w;
+    $("stagePill").textContent = stageAt(w);
+    if (cross) { cross.setAttribute("x1", px(w)); cross.setAttribute("x2", px(w)); }
+    paintSpec(w);
+  }
+  function update() {
+    save();
+    drawChart();
+    const vw = $("vw"); const [a, b] = range(); vw.min = a; vw.max = b;
+    if (+vw.value < a || +vw.value > b) vw.value = S.anchors[Math.min(1, N() - 1)].at;
+    setVw(+vw.value);
+    output();
+    if (view === "present") buildPresent();
+  }
+  function rebuild() {
+    $("prefix").value = S.prefix;
+    buildAnchors(); buildTokHead(); buildEaseSelect(); buildTable(); buildSpec(); buildProposalSel(); update();
+  }
+
+  // ---------- wire ----------
+  $("preset").value = S.preset || "figma";
+  const loadPreset = () => { const p = $("preset").value; const keep = S.presentWidths; S = fresh(p); S.presentWidths = keep; $("vw").value = S.anchors[Math.min(1, N() - 1)].at; rebuild(); barStatus(""); };
+  $("preset").addEventListener("change", loadPreset);
+  $("resetBtn").addEventListener("click", loadPreset);
+  $("prefix").addEventListener("input", e => {
+    const v = e.target.value.trim();
+    const ok = /^[a-z][a-z0-9-]*$/i.test(v);
+    $("prefixHint").textContent = ok ? `--${v}-*` : "Letters, digits and hyphens";
+    if (ok) { S.prefix = v; edited(); save(); output(); }
+  });
+  $("easePct").addEventListener("input", () => { $("easeOut").textContent = $("easePct").value + "%"; });
+  $("easeBtn").addEventListener("click", () => {
+    const k = +$("easeFrom").value, pct = +$("easePct").value / 100, A = S.anchors;
+    S.tokens.forEach(t => {
+      const s = (t[k + 1] - t[k]) / (A[k].at - A[k - 1].at);
+      for (let j = k + 1; j < N(); j++) t[j + 1] = Math.round((t[k + 1] + s * pct * (A[j].at - A[k].at)) * 2) / 2;
+    });
+    edited(); buildTable(); update();
+    $("easeHint").textContent = `Applied: after ${A[k].name}, ${Math.round(pct * 100)}% of the earlier rate.`;
+  });
+  $("showSteps").addEventListener("change", () => { drawChart(); setVw(+$("vw").value); });
+  $("vw").addEventListener("input", () => setVw(+$("vw").value));
+  $("face").addEventListener("change", () => { paintSpec(+$("vw").value); if (view === "present") buildPresent(); });
+  $("addBtn").addEventListener("click", () => {
+    const last = S.tokens[S.tokens.length - 1];
+    const t = ["new-" + (S.tokens.length + 1), ...S.anchors.map((a, j) => last ? Math.max(8, last[j + 1] - 2) : 16)];
+    S.tokens.push(t); edited(); buildTable(); buildSpec(); update();
+    const inp = document.getElementById("tok-name-" + (S.tokens.length - 1)); if (inp) inp.focus();
+  });
+  $("copyBtn").addEventListener("click", async () => {
+    const txt = $("out").textContent, toast = $("toast");
+    try { await navigator.clipboard.writeText(txt); toast.textContent = "Copied"; }
+    catch (e) {
+      const rng = document.createRange(); rng.selectNodeContents($("out"));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rng);
+      toast.textContent = "Selected. Press ⌘C or Ctrl+C to copy";
+    }
+    setTimeout(() => { toast.textContent = ""; }, 2500);
+  });
+
+  $("vw").value = S.anchors[Math.min(1, N() - 1)].at;
+  buildTabs();
+  rebuild();
+
+  const hash = location.hash.slice(1);
+  if (hash === "present") setView("present");
+  fetch("proposals.json", { cache: "no-store" })
+    .then(r => r.ok ? r.json() : [])
+    .catch(() => [])
+    .then(list => {
+      proposals = Array.isArray(list) ? list : [];
+      if (hash.startsWith("p-") && openProposal(hash.slice(2))) setView("present");
+      else buildProposalSel();
+    });
+  if (window.claude && window.claude.use) {
+    window.claude.use("artifact").then(a => { artifact = a; buildProposalSel(); }).catch(() => {});
+    window.claude.use("comments").then(c => { comments = c; if (view === "present") buildPresent(); }).catch(() => {});
+  }
+})();
+</script>
