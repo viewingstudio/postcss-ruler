@@ -264,6 +264,18 @@ Convert individual values directly to `clamp()` functions:
 }
 ```
 
+**Through three or more points:** give the sizes as a list, then the anchor widths as a second list. Leave the widths out to use the plugin's `anchors` option.
+
+```css
+.element {
+  font-size: ruler.fluid([16, 18, 19], [375, 1440, 2560]);
+  /* With anchors: [375, 1440, 2560] in the plugin options */
+  padding: ruler.fluid([24, 40, 48]);
+}
+```
+
+This gives the same `calc()` + `clamp()` value as a multi-anchor scale.
+
 **Generates:**
 
 ```css
@@ -371,13 +383,14 @@ You can override the global setting per utility by explicitly setting `lowSpecif
 
 ### Plugin Options
 
-| Option                  | Type    | Default | Description                                                    |
-| ----------------------- | ------- | ------- | -------------------------------------------------------------- |
-| `minWidth`              | number  | `320`   | Default minimum viewport width in pixels                       |
-| `maxWidth`              | number  | `1760`  | Default maximum viewport width in pixels                       |
-| `generateAllCrossPairs` | boolean | `false` | Generate cross-combinations in scale mode                      |
-| `lowSpecificity`        | boolean | `false` | Wrap utility selectors in `:where()` to lower specificity to 0 |
-| `scales`                | object  | `{}`    | Pre-defined scales for cross-file usage (see below)            |
+| Option                  | Type    | Default | Description                                                                                                                                              |
+| ----------------------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `minWidth`              | number  | `320`   | Default minimum viewport width in pixels                                                                                                                 |
+| `maxWidth`              | number  | `1760`  | Default maximum viewport width in pixels                                                                                                                 |
+| `anchors`               | array   | none    | Default anchor widths, e.g. `[390, 1440, 2560]`. Used by `ruler.fluid([…])` and by scales that set no widths of their own, when their size count matches |
+| `generateAllCrossPairs` | boolean | `false` | Generate cross-combinations in scale mode                                                                                                                |
+| `lowSpecificity`        | boolean | `false` | Wrap utility selectors in `:where()` to lower specificity to 0                                                                                           |
+| `scales`                | object  | `{}`    | Pre-defined scales for cross-file usage (see below)                                                                                                      |
 
 ### Pre-defined Scales (for Astro, Vite, etc.)
 
@@ -462,7 +475,10 @@ All options can be overridden per `@ruler scale()` declaration:
 
 ```
 ruler.fluid(minSize, maxSize[, minWidth, maxWidth])
+ruler.fluid([size, size, size, …][, [width, width, width, …]])
 ```
+
+In the list form, each size lines up with an anchor width. Without the second list, it uses the plugin's `anchors` option when the counts match, and `minWidth`/`maxWidth` for two sizes.
 
 | Parameter  | Type   | Required | Description                                  |
 | ---------- | ------ | -------- | -------------------------------------------- |

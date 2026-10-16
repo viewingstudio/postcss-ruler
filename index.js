@@ -1,6 +1,7 @@
 const CSSValueParser = require("postcss-value-parser");
 const {
   calculateClamp,
+  calculateFluid,
   generateClamps,
   normalizeAnchors,
   resolveScale,
@@ -62,6 +63,7 @@ module.exports = (opts) => {
         case "minWidth":
         case "maxWidth":
           clampsParams[key] = Number(value);
+          clampsParams.ownWidths = true;
           i++;
           break;
         case "prefix":
@@ -214,7 +216,11 @@ module.exports = (opts) => {
     const clampScale = generateClamps({
       pairs: clampPairs,
       anchors: normalizeAnchors(
-        clampsParams.anchors || [clampsParams.minWidth, clampsParams.maxWidth],
+        clampsParams.anchors ||
+          (!clampsParams.ownWidths &&
+          config.anchors?.length === clampPairs[0].values.length
+            ? config.anchors
+            : [clampsParams.minWidth, clampsParams.maxWidth]),
       ),
       generateAllCrossPairs: clampsParams.generateAllCrossPairs,
     });
@@ -362,6 +368,52 @@ module.exports = (opts) => {
   };
 
   /**
+   * Turns the array form of ruler.fluid() into a fluid value
+   * @param {string} args - e.g. "[16, 24, 28], [390, 1440, 2560]"
+   * @returns {string} CSS value
+   */
+  const parseFluidArrays = (args) => {
+    const lists = [...args.matchAll(/\[([^\]]*)\]/g)].map(([, list]) =>
+      list
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map(Number),
+    );
+    const [values, anchors] = lists;
+
+    if (
+      !values ||
+      values.length < 2 ||
+      values.some((v) => !Number.isFinite(v))
+    ) {
+      throw new Error(
+        `[postcss-ruler] ruler.fluid() needs at least two sizes: ruler.fluid(${args})`,
+      );
+    }
+
+    return calculateFluid({
+      values,
+      anchors: anchors || defaultAnchors(values.length),
+    });
+  };
+
+  /**
+   * Anchors used when ruler.fluid() or a scale doesn't give its own
+   * @param {number} count - How many values need an anchor
+   * @returns {number[]} Anchor widths
+   */
+  const defaultAnchors = (count) => {
+    if (config.anchors && config.anchors.length === count) {
+      return config.anchors;
+    }
+    if (count === 2) return [config.minWidth, config.maxWidth];
+    throw new Error(
+      `[postcss-ruler] ruler.fluid() got ${count} sizes but no anchors. Pass them as a second list, or set the plugin's anchors option with ${count} widths`,
+    );
+  };
+
+  /**
    * Processes inline fluid functions in declarations
    * @param {Object} decl - PostCSS declaration node
    */
@@ -371,6 +423,12 @@ module.exports = (opts) => {
     let match;
 
     while ((match = regex.exec(decl.value)) !== null) {
+      // Array form: ruler.fluid([16, 24, 28], [390, 1440, 2560])
+      if (match[1].includes("[")) {
+        newValue = newValue.replace(match[0], parseFluidArrays(match[1]));
+        continue;
+      }
+
       const args = match[1]
         .split(",")
         .map((s) => s.trim())

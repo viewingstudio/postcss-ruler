@@ -188,19 +188,30 @@ const generateClamps = ({ pairs, anchors, generateAllCrossPairs }) => {
  * Resolves a scale config (the plugin's `scales` option shape) into anchors,
  * pairs, and flags
  * @param {Object} scaleConfig - { anchors?, minWidth?, maxWidth?, pairs, generateAllCrossPairs? }
- * @param {Object} [defaults] - Fallback minWidth, maxWidth, generateAllCrossPairs
+ * @param {Object} [defaults] - Fallback anchors, minWidth, maxWidth, generateAllCrossPairs
  * @returns {{anchors: Array<{name: string, width: number}>, pairs: Array<{name: string, values: number[]}>, generateAllCrossPairs: boolean}}
  */
 const resolveScale = (scaleConfig, defaults = {}) => {
-  const anchors = normalizeAnchors(
-    scaleConfig.anchors || [
-      scaleConfig.minWidth || defaults.minWidth || 320,
-      scaleConfig.maxWidth || defaults.maxWidth || 1760,
-    ],
-  );
-
   const pairs = Object.entries(scaleConfig.pairs || {}).map(
     ([name, values]) => ({ name, values }),
+  );
+
+  // Default anchors apply when the scale sets no widths of its own and its
+  // sizes match them in count, so two-value scales keep minWidth/maxWidth
+  const useDefaultAnchors =
+    !scaleConfig.minWidth &&
+    !scaleConfig.maxWidth &&
+    pairs.length > 0 &&
+    defaults.anchors?.length === pairs[0].values.length;
+
+  const anchors = normalizeAnchors(
+    scaleConfig.anchors ||
+      (useDefaultAnchors
+        ? defaults.anchors
+        : [
+            scaleConfig.minWidth || defaults.minWidth || 320,
+            scaleConfig.maxWidth || defaults.maxWidth || 1760,
+          ]),
   );
 
   return {

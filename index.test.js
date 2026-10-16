@@ -1210,3 +1210,57 @@ test("defers utilities whose scale is added by a later plugin", async () => {
 }`,
   );
 });
+
+const MD_3 =
+  "calc(1rem + clamp(0rem, (100vw - 375px) * 0.00188, 0.125rem) + clamp(0rem, (100vw - 1440px) * 0.0009, 0.0625rem))";
+
+test("ruler.fluid() takes sizes and anchors as lists", async () => {
+  await run(
+    `.a { font-size: ruler.fluid([16, 18, 19], [375, 1440, 2560]); }`,
+    `.a { font-size: ${MD_3}; }`,
+    {},
+  );
+});
+
+test("ruler.fluid() list form uses the anchors option", async () => {
+  await run(
+    `.a { font-size: ruler.fluid([16, 18, 19]); margin: ruler.fluid([8, 16]) ruler.fluid(8, 16); }`,
+    `.a { font-size: ${MD_3}; margin: clamp(0.5rem, 0.5556vw + 0.3889rem, 1rem) clamp(0.5rem, 0.5556vw + 0.3889rem, 1rem); }`,
+    { anchors: [375, 1440, 2560] },
+  );
+});
+
+test("ruler.fluid() throws when sizes don't match any anchors", async () => {
+  let error;
+  try {
+    await run(`.a { font-size: ruler.fluid([16, 18, 19]); }`, "", {});
+  } catch (e) {
+    error = e;
+  }
+  equal(error.message.includes("got 3 sizes but no anchors"), true);
+});
+
+test("the anchors option applies to scales without their own widths", async () => {
+  await run(
+    `@ruler scale({
+      prefix: 'text',
+      pairs: { "md": [16, 18, 19] }
+    });
+    @ruler scale({
+      prefix: 'space',
+      pairs: { "xs": [8, 16] }
+    });`,
+    `--text-md: ${MD_3};
+    --space-xs: clamp(0.5rem, 0.5556vw + 0.3889rem, 1rem);`,
+    { anchors: [375, 1440, 2560] },
+  );
+});
+
+test("config scales pick up the anchors option", async () => {
+  const { resolveScale } = require("./core");
+  const resolved = resolveScale(
+    { pairs: { md: [16, 18, 19] } },
+    { anchors: [375, 1440, 2560] },
+  );
+  equal(resolved.anchors.map((a) => a.width).join(","), "375,1440,2560");
+});

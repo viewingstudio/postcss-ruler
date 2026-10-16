@@ -12,7 +12,7 @@ The plugin operates in three modes:
 
 1. **Scale generation**: `@ruler scale()` - Generates multiple CSS custom properties from named pairs
 2. **Utility class generation**: `@ruler utility()` - Generates utility classes from previously defined scales
-3. **Inline mode**: `ruler.fluid(minSize, maxSize, minWidth?, maxWidth?)` - Converts inline function calls directly to `clamp()` values
+3. **Inline mode**: `ruler.fluid(minSize, maxSize, minWidth?, maxWidth?)` - Converts inline function calls directly to `clamp()` values. The list form `ruler.fluid([16, 24, 28], [390, 1440, 2560]?)` goes through `calculateFluid` for any number of anchors
 
 ### Key Components
 
@@ -25,7 +25,7 @@ The plugin operates in three modes:
 **Main entry point** (`index.js`):
 - Exports a PostCSS plugin factory function and requires the maths from `./core`
 - Processes `@ruler` at-rules and inline `ruler.fluid()` in a `Once` hook, so it runs before plugins that rebuild the tree in their own `Once` (e.g. `@tailwindcss/postcss`, which lets `@ruler scale()` sit inside `@theme`). The `AtRule`/`Declaration` visitors stay for nodes added later (e.g. by postcss-import). In the `Once` pass, utilities whose scale isn't defined yet are left for the visitors
-- Configuration: `minWidth` (default: 320), `maxWidth` (default: 1760), `generateAllCrossPairs` (default: false), `lowSpecificity`, `scales`
+- Configuration: `minWidth` (default: 320), `maxWidth` (default: 1760), `anchors` (default anchors for list-form `ruler.fluid()` and for scales with no widths of their own whose size count matches), `generateAllCrossPairs` (default: false), `lowSpecificity`, `scales`
 
 **At-rule processing** (`processFluidAtRule`, index.js:195):
 - Parses `@ruler scale()` parameters using `postcss-value-parser`
